@@ -1,0 +1,84 @@
+.panel {
+  position: relative;
+  background: var(--bg-panel);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-panel);
+  display: flex;
+  flex-direction: column;
+  /* `min-width: 0` IS needed here (unlike min-height below): Panel is
+   * used as a flex/grid item everywhere (Overview/System's grids,
+   * page-level flex columns), and a flex/grid item's default
+   * `min-width: auto` lets its own content's minimum width (e.g. a row
+   * of RadialGauges that would rather not wrap) force the item, and
+   * everything above it, wider than the viewport instead of actually
+   * wrapping, which is exactly the horizontal-overflow bug this fixes
+   * at phone widths. */
+  min-width: 0;
+  /* PAS de `min-height: 0` ici : ce composant est utilisé partout, y
+     compris dans des parents à hauteur contrainte (grilles/colonnes flex
+     avec overflow) : `min-height: 0` y autorisait le panneau à rétrécir
+     EN DESSOUS de la hauteur de son propre contenu, qui débordait alors
+     par-dessus l'élément suivant au lieu d'être simplement affiché
+     (chevauchements observés sur Overview/System/Settings/Data). Les
+     rares panneaux qui contiennent une zone défilante (LogPanel,
+     EventsTable) bornent déjà CETTE zone précisément (hauteur/max-height
+     fixe) ; le panneau lui-même n'a jamais besoin de rétrécir. */
+}
+
+/* A barely-there HUD "readout" texture: extremely faint horizontal
+ * scanlines, texture rather than decoration. Sits behind the header/body
+ * content (z-index: -1 within this panel's own stacking context, which
+ * `position: relative` above establishes) so it never competes with
+ * actual text. Kept this subtle on purpose; if it ever reads as noise
+ * rather than texture, delete this block rather than tone it down
+ * further. */
+.panel::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  pointer-events: none;
+  background-image: repeating-linear-gradient(
+    0deg,
+    rgba(127, 161, 227, 0.025) 0px,
+    rgba(127, 161, 227, 0.025) 1px,
+    transparent 1px,
+    transparent 3px
+  );
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--sp-3) var(--sp-4);
+  border-bottom: 1px solid var(--border-subtle);
+  flex-shrink: 0;
+}
+
+.title {
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+.meta {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.body {
+  padding: var(--sp-4);
+  flex: 1;
+}
+
+.body.noPad {
+  padding: 0;
+}

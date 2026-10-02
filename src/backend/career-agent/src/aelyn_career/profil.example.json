@@ -1,0 +1,106 @@
+{
+  "profile": {
+    "current-city": "Paris",
+    "languages": [
+      {
+        "language": "Français",
+        "level": "courant"
+      },
+      {
+        "language": "Anglais",
+        "level": "intermédiaire"
+      }
+    ],
+    "interests": [
+      "Course à pied",
+      "Programmation",
+      "Lecture"
+    ],
+    "education": [
+      {
+        "institution": "Exemple d'École d'Ingénieurs",
+        "degree": "Diplôme d'ingénieur",
+        "field": "Informatique, Data Science",
+        "location": "France, Paris",
+        "period": "2023-2026"
+      }
+    ],
+    "experience": [
+      {
+        "role": "Stagiaire Data Analyst",
+        "company": "Entreprise Exemple SA",
+        "location": "Paris, France",
+        "period": "Juin 2025 - Septembre 2025",
+        "description": "Exemple de description de stage : mission réalisée, méthodes utilisées, résultat obtenu. Remplace ce texte par tes vraies expériences, le plus précis possible (chiffres, outils, résultats réels) : c'est ce que le career-agent utilisera mot pour mot pour générer ton CV et tes lettres de motivation, sans jamais rien inventer au-delà de ce qui est écrit ici.",
+        "methodology": [
+          "Exemple de méthode 1",
+          "Exemple de méthode 2"
+        ],
+        "technologies": [
+          "Python",
+          "SQL"
+        ],
+        "results": {
+          "exemple_resultat": "Exemple de résultat chiffré (ex. 15% de réduction du temps de traitement)"
+        }
+      }
+    ],
+    "skills": {
+      "programming_languages": [
+        "Python",
+        "SQL"
+      ],
+      "tools_and_frameworks": [
+        "Git",
+        "GitHub"
+      ],
+      "statistics": [
+        "Régression",
+        "Statistiques descriptives"
+      ]
+    },
+    "projects": {
+      "academic_projects": [
+        {
+          "title": "Exemple de projet académique",
+          "institution": "Exemple d'École",
+          "period": "Janvier 2025 - Mars 2025",
+          "category": [
+            "Data Science"
+          ],
+          "description": "Exemple de description de projet académique à remplacer par un vrai projet réalisé.",
+          "methodology": [
+            "Exemple de méthode"
+          ],
+          "skills": [
+            "Python"
+          ]
+        }
+      ],
+      "bachelor_projects": [],
+      "personal_projects": [
+        {
+          "title": "Exemple de projet personnel",
+          "year": 2024,
+          "category": [
+            "Machine Learning"
+          ],
+          "description": "Exemple de description de projet personnel.",
+          "technologies": [
+            "Python"
+          ],
+          "source": "Portfolio personnel"
+        }
+      ]
+    },
+    "volunteering": {
+      "website": [],
+      "linkedin": []
+    },
+    "certifications": {
+      "website": [],
+      "linkedin": []
+    },
+    "recommendations": []
+  }
+}

@@ -1,0 +1,95 @@
+# --- Installation (une seule fois, nécessite une connexion internet) ---
+cd src/backend
+uv sync --all-packages --extra voice   # tout le workspace + micro/voix (Kokoro)
+
+# --- Configuration (une seule fois) ---
+test -f .env || cp .env.example .env
+# édite .env : EMAIL_USER + EMAIL_PASS (mot de passe d'application Gmail, pas ton vrai mot de passe)
+
+ollama pull qwen3:4b                   # modèle utilisé par défaut (voir LLM_MODEL dans .env)
+
+# espeak-ng requis pour la voix française de Kokoro (paquet système, pas pip) :
+winget install eSpeak-NG.eSpeak-NG
+
+# --- Utilisation ---
+uv run aelyn verifier                  # connexion IMAP + liste des non-lus, sans LLM
+uv run aelyn triage                    # analyse, ne fait rien
+uv run aelyn valider 3                 # exécute la proposition #3
+uv run aelyn rejeter 3                 # rejette la proposition #3
+uv run aelyn rapport                   # "voilà ce que j'ai fait"
+uv run aelyn chat                      # mode conversationnel, au clavier
+uv run aelyn chat --voix               # idem, au micro (parle, AELYN répond à voix haute)
+
+
+
+cd "E:/PROJETS_PERSONNELS/aelyn/src/backend"
+
+# ============================================================
+# 1) CLI directe (aelyn_email via `aelyn`, sans chat, sans LLM pour verifier)
+# ============================================================
+uv run aelyn verifier --limit 5
+uv run aelyn triage --limit 5
+uv run aelyn valider <id>          # id vu dans la sortie du triage
+uv run aelyn rejeter <id>
+uv run aelyn rapport --hours 24
+uv run aelyn -v triage             # -v = logs debug
+
+# ============================================================
+# 2) Chat texte (mail + carrière + média + conversation, un seul run)
+# ============================================================
+uv run aelyn chat
+# puis, une phrase par ligne :
+#   vérifie mes mails
+#   trie mes mails
+#   fais un rapport des dernières 24 heures
+#   résume le premier mail
+#   fais un brouillon pour le premier mail
+#   reformule ça
+#   lis-le / relis le deuxième
+#   valide la proposition 1
+#   rejette la 2
+#   cherche des offres data scientist
+#   cherche des offres chez EDF et Roche
+#   cherche des stages
+#   décris la première offre
+#   prepare-moi un cv pour la première offre
+#   rédige une lettre de motivation pour cette offre
+#   allume la télé
+#   lance Netflix
+#   cherche Stranger Things sur Netflix
+#   lance YouTube
+#   cherche des vidéos de chats sur YouTube
+#   monte le son / baisse le son / coupe le son
+#   mets en pause la télé / suivant / précédent
+#   éteins la télé
+#   raconte-moi une blague
+#   qui es-tu ?
+#   quitter
+
+# Équivalent non-interactif (un seul chunk, sans taper à la main) :
+printf "vérifie mes mails\ntrie mes mails\nfais un rapport des dernières 24 heures\nrésume le premier mail\nfais un brouillon pour le premier mail\nreformule ça\nlis-le\ncherche des offres data scientist\ndécris la première offre\nprepare-moi un cv pour la première offre\nrédige une lettre de motivation pour cette offre\nallume la télé\nlance Netflix\ncherche Stranger Things sur Netflix\nlance YouTube\nmonte le son\nbaisse le son\nmets en pause la télé\néteins la télé\nraconte-moi une blague\nqui es-tu ?\nquitter\n" | uv run aelyn chat
+
+# ============================================================
+# 3) Chat voix (mode "Siri", micro + Kokoro TTS)
+# ============================================================
+uv run aelyn chat --voix
+# dis le mot d'activation puis les mêmes phrases qu'en (2), en particulier :
+#   - "relis le deuxième" / "troisième" (résolution par position)
+#   - un nom avec apostrophe : "le mail d'IBM", "l'offre de Roche"
+#   - une phrase avec du bruit de fond (robustesse + wake-word flou)
+#   - une demande de CV/LM (observe les "… toujours en cours (Ns)" dans le terminal)
+
+# ============================================================
+# 4) Media-agent en isolation (sans passer par aelyn_conversation)
+# ============================================================
+cd media-agent
+uv run python scripts/text_chat.py
+# tape directement une commande TV (netflix, youtube, tv_power, up/down/left/right,
+# select, play_pause, volume_up/down, mute, home, back, "cherche <requête> sur
+# youtube|netflix", quitter)
+cd ..
+
+# ============================================================
+# 5) Tests automatisés (career-agent : seul package avec une suite pytest)
+# ============================================================
+uv run --package career-agent pytest career-agent/tests/ -v

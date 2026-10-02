@@ -1,0 +1,90 @@
+.page {
+  padding: var(--sp-3);
+  height: 100%;
+  overflow-y: auto;
+}
+
+.header {
+  margin-bottom: var(--sp-3);
+}
+
+.title {
+  font-size: var(--fs-lg);
+  font-weight: 600;
+}
+
+.subtitle {
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+  gap: var(--sp-3);
+}
+
+@media (max-width: 480px) {
+  .grid {
+    /* Below this width even a single 360px-minimum column would overflow
+     * the viewport; drop the minimum so the one remaining column just
+     * fills the available width instead. */
+    grid-template-columns: 1fr;
+  }
+
+  .overlay {
+    padding: var(--sp-3);
+  }
+}
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(5, 6, 8, 0.82);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+  padding: var(--sp-6);
+  animation: fade-in var(--duration-base) var(--ease-standard);
+}
+
+.overlayClosing {
+  animation: fade-in var(--duration-fast) var(--ease-standard) reverse;
+}
+
+.overlayInner {
+  width: min(920px, 100%);
+  animation: fade-in-scale var(--duration-base) var(--ease-standard);
+}
+
+.overlayInnerClosing {
+  animation: fade-in-scale var(--duration-fast) var(--ease-standard) reverse;
+}
+
+.overlayHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--sp-2);
+}
+
+.overlayTitle {
+  font-size: var(--fs-md);
+  font-weight: 600;
+}
+
+.closeButton {
+  background: transparent;
+  border: 1px solid var(--border-default);
+  color: var(--text-secondary);
+  border-radius: var(--radius-sm);
+  padding: 4px var(--sp-3);
+  font-size: var(--fs-xs);
+  transition: color var(--duration-fast) var(--ease-standard), border-color var(--duration-fast) var(--ease-standard);
+}
+
+.closeButton:hover {
+  color: var(--text-primary);
+  border-color: var(--state-blue);
+}

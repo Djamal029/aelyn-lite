@@ -1,0 +1,131 @@
+.bar {
+  height: var(--topbar-height);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 var(--sp-4);
+  border-bottom: 1px solid var(--border-default);
+  background: var(--bg-panel);
+}
+
+.left {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-4);
+  min-width: 0;
+}
+
+/* Hidden on desktop (the sidebar is permanently docked there); becomes a
+ * real button below the tablet breakpoint, where Sidebar.tsx instead
+ * renders as an off-canvas drawer this toggles. A plain 3-bar icon drawn
+ * with CSS, matching the rest of the app's no-icon-font restraint. */
+.menuButton {
+  display: none;
+  background: transparent;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  padding: 7px;
+  flex-shrink: 0;
+  transition: border-color var(--duration-fast) var(--ease-standard);
+}
+
+.menuButton:hover {
+  border-color: var(--state-blue);
+}
+
+.menuIcon,
+.menuIcon::before,
+.menuIcon::after {
+  display: block;
+  width: 16px;
+  height: 2px;
+  background: var(--text-secondary);
+  border-radius: 1px;
+}
+
+.menuIcon::before,
+.menuIcon::after {
+  content: "";
+  position: relative;
+}
+
+.menuIcon::before {
+  top: 4px;
+}
+
+.menuIcon::after {
+  top: 2px;
+}
+
+.brand {
+  font-weight: 700;
+  font-size: var(--fs-md);
+  letter-spacing: 0.06em;
+  flex-shrink: 0;
+}
+
+.status {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--fs-xs);
+  color: var(--state-green);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-family: var(--font-mono);
+  white-space: nowrap;
+}
+
+.right {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-5);
+  flex-shrink: 0;
+}
+
+.clock {
+  font-family: var(--font-mono);
+  font-size: var(--fs-md);
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.tailscale {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--fs-xs);
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+/* Below the tablet breakpoint: show the drawer toggle, and drop the
+ * secondary status text (the sidebar's own per-section badges and the
+ * drawer itself still surface anything that actually needs attention) so
+ * the brand and the clock, the two things worth always keeping, don't
+ * get cramped or wrap awkwardly on a phone-width bar. */
+@media (max-width: 768px) {
+  .menuButton {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .status,
+  .tailscale {
+    display: none;
+  }
+
+  .bar {
+    padding: 0 var(--sp-3);
+  }
+
+  .left {
+    gap: var(--sp-3);
+  }
+}

@@ -1,0 +1,38 @@
+.log {
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  line-height: 1.7;
+  color: var(--text-secondary);
+  overflow-y: auto;
+  height: 100%;
+}
+
+.line {
+  display: flex;
+  gap: var(--sp-2);
+  padding: 1px var(--sp-3);
+  padding-left: calc(var(--sp-3) - 2px);
+  border-left: 2px solid transparent;
+  white-space: pre-wrap;
+  transition: background-color var(--duration-fast) var(--ease-standard), border-color var(--duration-fast) var(--ease-standard);
+}
+
+.line:hover {
+  background: var(--bg-hover);
+  border-left-color: var(--state-blue);
+}
+
+.time {
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.source {
+  color: var(--state-neutral);
+  flex-shrink: 0;
+  width: 52px;
+}
+
+.message {
+  color: var(--text-primary);
+}

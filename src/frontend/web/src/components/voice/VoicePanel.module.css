@@ -1,0 +1,166 @@
+/* Takes over the Assistant page's whole content area while open (see
+ * the component doc comment in VoicePanel.tsx): a centered, near-
+ * fullscreen "focus mode" around the orb, not a small inline strip
+ * sitting above the chat history anymore. */
+.panel {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-4);
+  padding: var(--sp-6);
+  background: var(--bg-panel);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-panel);
+  animation: fade-in-up var(--duration-base) var(--ease-standard);
+}
+
+.closeCorner {
+  position: absolute;
+  top: var(--sp-4);
+  right: var(--sp-4);
+  background: transparent;
+  border: 1px solid var(--border-default);
+  color: var(--text-muted);
+  border-radius: var(--radius-sm);
+  padding: var(--sp-1) var(--sp-3);
+  font-size: var(--fs-xs);
+  transition: color var(--duration-fast) var(--ease-standard), border-color var(--duration-fast) var(--ease-standard);
+}
+
+.closeCorner:hover {
+  color: var(--text-secondary);
+  border-color: var(--border-strong);
+}
+
+/* Reserves the orb's actual on-screen footprint once scaled up (see
+ * .orbScale) so surrounding flex content doesn't overlap it; the real
+ * VoiceOrb element itself is still rendered at its normal 96px size and
+ * just visually scaled, so its own state logic/HUD treatment
+ * (VoiceOrb.module.css) is completely untouched. */
+.orbStage {
+  width: 212px;
+  height: 212px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.orbScale {
+  transform: scale(2.2);
+}
+
+.info {
+  width: 100%;
+  max-width: 420px;
+  text-align: center;
+}
+
+.stateLabel {
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: var(--sp-1);
+}
+
+.stateLabel.ecoute,
+.stateLabel.traitement {
+  color: var(--state-blue);
+}
+
+.stateLabel.reponse {
+  color: var(--state-green);
+}
+
+.transcript {
+  font-family: var(--font-mono);
+  font-size: var(--fs-md);
+  color: var(--text-primary);
+  min-height: 20px;
+}
+
+.transcript .cursor {
+  display: inline-block;
+  width: 6px;
+  background: var(--state-blue);
+  margin-left: 2px;
+  animation: blink 0.9s step-end infinite;
+}
+
+@keyframes blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+.understood {
+  display: inline-flex;
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  color: var(--state-blue);
+  background: var(--state-blue-dim);
+  border-radius: var(--radius-sm);
+  padding: 3px var(--sp-2);
+  margin-top: var(--sp-2);
+  animation: fade-in-up var(--duration-base) var(--ease-standard);
+}
+
+.result {
+  font-size: var(--fs-sm);
+  color: var(--text-secondary);
+  margin-top: var(--sp-2);
+  white-space: pre-wrap;
+  animation: fade-in-up var(--duration-base) var(--ease-standard);
+}
+
+.hint,
+.notice {
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+  animation: fade-in var(--duration-fast) var(--ease-standard);
+}
+
+.notice {
+  color: var(--state-amber);
+}
+
+.ttsNote {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  margin-top: var(--sp-2);
+}
+
+.actions {
+  display: flex;
+  justify-content: center;
+  gap: var(--sp-2);
+  flex-shrink: 0;
+}
+
+.talkButton {
+  background: var(--state-blue-dim);
+  border: 1px solid var(--state-blue);
+  color: var(--state-blue);
+  border-radius: var(--radius-sm);
+  padding: var(--sp-2) var(--sp-4);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  transition: filter var(--duration-fast) var(--ease-standard);
+}
+
+.talkButton:hover:not(:disabled) {
+  filter: brightness(1.15);
+}
+
+.talkButton:disabled {
+  opacity: 0.5;
+  cursor: default;
+}

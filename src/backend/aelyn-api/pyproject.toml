@@ -1,0 +1,42 @@
+[project]
+name = "aelyn-api"
+version = "0.1.0"
+description = "AELYN : API REST (FastAPI) exposant les agents existants (mail/carrière/média/caméras) à un frontend"
+requires-python = ">=3.11"
+dependencies = [
+    # [voice] : POST /tts (cf. routers/tts.py) réutilise Kokoro/Edge TTS,
+    # exactement comme `aelyn chat --voix`, même extra que le CLI.
+    "aelyn[voice]",
+    "aelyn-email",
+    "aelyn-career",
+    "aelyn-media",
+    "aelyn-conversation",
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+    # GET /media/youtube/search (YouTube Data API v3), même lib que
+    # career-agent (aelyn_career.france_travail.offers) pour un appel
+    # HTTP synchrone simple, pas besoin d'un client async ici.
+    "requests>=2.31",
+    # GET /system/status (CPU/RAM/disque réels) : déjà présent en
+    # transitif (torch/sentence-transformers l'embarquent) mais jamais
+    # déclaré explicitement ailleurs ; une dépendance directe pour ne
+    # jamais casser silencieusement au gré des mises à jour de ces libs.
+    "psutil>=5.9",
+]
+
+[dependency-groups]
+dev = ["pytest>=8", "httpx>=0.27"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/aelyn_api"]
+
+[tool.uv.sources]
+aelyn = { workspace = true }
+aelyn-email = { workspace = true }
+aelyn-career = { workspace = true }
+aelyn-media = { workspace = true }
+aelyn-conversation = { workspace = true }

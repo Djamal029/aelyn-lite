@@ -1,0 +1,311 @@
+.page {
+  padding: var(--sp-4);
+  height: 100%;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+}
+
+.notice {
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  padding: var(--sp-2) var(--sp-3);
+  font-size: var(--fs-sm);
+  color: var(--text-secondary);
+  background: var(--bg-panel);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+  gap: var(--sp-3);
+}
+
+@media (max-width: 480px) {
+  .page {
+    padding: var(--sp-3);
+  }
+
+  .grid {
+    /* Below this width even a single 360px-minimum column would overflow
+     * the viewport; drop the minimum so it just fills the available
+     * width instead. */
+    grid-template-columns: 1fr;
+  }
+}
+
+.row {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  padding: var(--sp-1) 0;
+  border-bottom: 1px solid var(--border-subtle);
+  font-size: var(--fs-sm);
+}
+
+.row:last-child {
+  border-bottom: none;
+}
+
+.key {
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.valueGroup {
+  text-align: right;
+  min-width: 0;
+}
+
+.value {
+  font-family: var(--font-mono);
+  color: var(--text-primary);
+  word-break: break-word;
+  transition: color var(--duration-base) var(--ease-standard);
+}
+
+.note {
+  display: block;
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+}
+
+.lockState {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.lockForm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  animation: fade-in-up var(--duration-base) var(--ease-standard);
+}
+
+.lockHint {
+  font-size: var(--fs-sm);
+  color: var(--text-secondary);
+  margin: 0;
+  line-height: var(--lh-normal);
+}
+
+.lockRow {
+  display: flex;
+  gap: var(--sp-2);
+}
+
+.lockInput {
+  flex: 1;
+  background: var(--bg-inset);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  padding: 7px var(--sp-3);
+  font-size: var(--fs-sm);
+  color: var(--text-primary);
+  transition: border-color var(--duration-fast) var(--ease-standard), box-shadow var(--duration-fast) var(--ease-standard);
+}
+
+.lockInput:focus {
+  outline: none;
+  border-color: var(--state-blue);
+  box-shadow: var(--glow-blue-sm);
+}
+
+.lockButton {
+  background: var(--state-blue-dim);
+  border: 1px solid var(--state-blue);
+  color: var(--state-blue);
+  border-radius: var(--radius-sm);
+  padding: 7px var(--sp-4);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  flex-shrink: 0;
+  transition: filter var(--duration-fast) var(--ease-standard);
+}
+
+.lockButton:hover:not(:disabled) {
+  filter: brightness(1.15);
+}
+
+.lockButton:disabled {
+  opacity: 0.5;
+}
+
+.lockError {
+  font-size: var(--fs-xs);
+  color: var(--state-red);
+}
+
+.unlockedRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  animation: fade-in-up var(--duration-base) var(--ease-standard);
+}
+
+.unlockedText {
+  font-size: var(--fs-sm);
+  color: var(--text-secondary);
+}
+
+.toggleRow {
+  cursor: pointer;
+}
+
+.toggleRowLocked {
+  cursor: not-allowed;
+}
+
+.toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  font-family: var(--font-mono);
+  color: var(--text-primary);
+}
+
+.lockNote {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+.editForm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+.fieldGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: var(--sp-3);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.fieldWide {
+  grid-column: 1 / -1;
+}
+
+.fieldLabel {
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  letter-spacing: 0.03em;
+}
+
+.fieldInput {
+  background: var(--bg-inset);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  padding: 7px var(--sp-3);
+  font-size: var(--fs-sm);
+  font-family: var(--font-mono);
+  color: var(--text-primary);
+  transition: border-color var(--duration-fast) var(--ease-standard), box-shadow var(--duration-fast) var(--ease-standard);
+}
+
+.fieldInput:focus {
+  outline: none;
+  border-color: var(--state-blue);
+  box-shadow: var(--glow-blue-sm);
+}
+
+.fieldInput:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.fieldNote {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+}
+
+.fieldError {
+  font-size: var(--fs-xs);
+  color: var(--state-red);
+  line-height: var(--lh-normal);
+}
+
+.saveRow {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--sp-3);
+  padding-top: var(--sp-1);
+  border-top: 1px solid var(--border-subtle);
+}
+
+.saveButton {
+  background: var(--state-blue-dim);
+  border: 1px solid var(--state-blue);
+  color: var(--state-blue);
+  border-radius: var(--radius-sm);
+  padding: 8px var(--sp-4);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  flex-shrink: 0;
+  transition: filter var(--duration-fast) var(--ease-standard);
+}
+
+.saveButton:hover:not(:disabled) {
+  filter: brightness(1.15);
+}
+
+.saveButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.saveSuccess {
+  font-size: var(--fs-sm);
+  color: var(--state-green);
+  animation: fade-in var(--duration-fast) var(--ease-standard);
+}
+
+.jsonEditor {
+  width: 100%;
+  min-height: 360px;
+  resize: vertical;
+  background: var(--bg-inset);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  padding: var(--sp-3);
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-normal);
+  color: var(--text-primary);
+  white-space: pre;
+  overflow: auto;
+  transition: border-color var(--duration-fast) var(--ease-standard), box-shadow var(--duration-fast) var(--ease-standard);
+}
+
+.jsonEditor:focus {
+  outline: none;
+  border-color: var(--state-blue);
+  box-shadow: var(--glow-blue-sm);
+}
+
+.jsonEditor:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.profileError {
+  white-space: pre-wrap;
+}

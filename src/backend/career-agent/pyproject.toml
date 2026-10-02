@@ -1,0 +1,41 @@
+[project]
+name = "aelyn-career"
+version = "0.1.0"
+description = "AELYN : agent carrière (profil, CV, recherche d'opportunités)"
+requires-python = ">=3.11"
+dependencies = [
+    "aelyn",
+    "python-dotenv>=1.0",
+    "sentence-transformers>=3.0",
+    "rank-bm25>=0.2",
+    "requests>=2.31",
+    "torch>=2.9",
+]
+
+[dependency-groups]
+dev = ["pytest>=8"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/aelyn_career"]
+
+[tool.uv.sources]
+aelyn = { workspace = true }
+# pytorch-cu130 : réécrit par src/backend/scripts/install.sh/.ps1 avant
+# `uv sync`, selon qu'un GPU NVIDIA compatible est détecté ou non
+# (`pytorch-cu130` ou `pytorch-cpu`, cf. les deux [[tool.uv.index]] du
+# pyproject.toml racine ; même mécanisme dans security-agent/pyproject.toml,
+# qui a le même besoin). Choix délibéré après avoir essayé l'approche "deux
+# extras `cpu`/`cuda` mutuellement exclusifs + `tool.uv.conflicts`"
+# recommandée par la doc uv pour ce cas : dans CE workspace multi-paquets,
+# uv 0.12.5 refusait la résolution ("conflicting indexes... in all marker
+# environments") même en qualifiant les entrées de `conflicts` par
+# `package = "aelyn-career"` — `tool.uv.sources` avec un marqueur `extra`
+# ne semble reconnu que si déclaré dans LE MÊME fichier que l'extra visé,
+# et même ainsi la résolution universelle du workspace restait en échec.
+# Un simple remplacement de texte avant sync est beaucoup plus robuste
+# qu'une fonctionnalité uv qui ne s'est pas comportée comme documenté ici.
+torch = { index = "pytorch-cu130" }

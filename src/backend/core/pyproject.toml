@@ -1,0 +1,54 @@
+[project]
+name = "aelyn"
+version = "0.1.0"
+description = "AELYN : cœur partagé (config, journal, accès LLM)"
+requires-python = ">=3.11"
+dependencies = [
+    "ollama>=0.4",
+    "pydantic>=2.9",
+    "python-dotenv>=1.0",
+    "sqlalchemy>=2.0",
+]
+
+[project.optional-dependencies]
+# `aelyn chat --voix` : reconnaissance vocale (micro) + synthèse (Kokoro).
+# À part car ça tire tensorflow-free mais des libs audio/ML lourdes que
+# les autres commandes n'utilisent jamais.
+voice = [
+    "SpeechRecognition>=3.10",
+    "PyAudio>=0.2.14",
+    "kokoro-onnx>=0.4",
+    "soundfile>=0.12",
+    "sounddevice>=0.4",
+    "misaki-fork[en]>=0.1",
+    # "13e" -> "treizième" avant synthèse (cf. voice._expand_ordinal),
+    # déjà tiré indirectement par misaki-fork[en], déclaré explicitement
+    # pour ne pas dépendre d'un extra qui pourrait changer.
+    "num2words>=0.5",
+    "edge-tts>=7.2.8",
+    # Transcription locale (GPU CUDA si dispo) : bien plus robuste que
+    # `recognize_google` sur le français mélangé à des termes anglais
+    # ("Data Scientist", noms propres) et fonctionne hors ligne une fois
+    # le modèle téléchargé, cf. voice._transcribe_whisper.
+    "faster-whisper>=1.0",
+    # ctranslate2 (moteur de faster-whisper) charge cublas64_12.dll /
+    # cudnn64_9.dll dynamiquement mais ne les fournit pas lui-même : sans
+    # ces deux paquets (qui embarquent les .dll), le mode GPU échoue avec
+    # "Library cublas64_12.dll is not found or cannot be loaded" même
+    # avec un GPU NVIDIA et torch+CUDA installés, cf. voice._get_whisper_model.
+    "nvidia-cublas-cu12>=12.0",
+    "nvidia-cudnn-cu12>=9.0",
+]
+
+[project.scripts]
+aelyn = "aelyn.cli:main"
+
+[dependency-groups]
+dev = ["pytest>=8"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/aelyn"]

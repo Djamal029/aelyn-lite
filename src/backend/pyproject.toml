@@ -1,0 +1,77 @@
+[project]
+name = "aelyn-backend"
+version = "0.1.0"
+description = "AELYN : workspace racine du backend (core + agents)"
+requires-python = ">=3.11"
+dependencies = [
+    "aelyn",
+    "aelyn-email",
+    "aelyn-conversation",
+    "aelyn-career",
+    "aelyn-media",
+    "aelyn-api",
+    "rank-bm25>=0.2.2",
+]
+
+# `security-agent` (reconnaissance faciale/anti-spoofing) reste du ressort
+# personnel de l'auteur, pas des autres installations (cf. script
+# d'installation, qui ne demande JAMAIS cet extra par défaut) : un simple
+# `uv sync --all-packages` sans distinction forcerait tout le monde à
+# installer deepface/tensorflow/ultralytics/mediapipe, inutiles pour le
+# mail/la carrière/le média/la conversation, et à résoudre torch pour un
+# second paquet (cf. security-agent/pyproject.toml) sans raison. `ultralytics`/
+# `opencv-contrib-python`/`mediapipe` suivent dans le même extra : rien en
+# dehors de security-agent ne les importe (vérifié).
+[project.optional-dependencies]
+security = [
+    "aelyn-security",
+    "opencv-contrib-python>=5.0.0.93",
+    "ultralytics>=8.4.157",
+    "mediapipe>=1.0.1",
+]
+# Passerelle vers l'extra `voice` de `core` (cf. core/pyproject.toml) : un
+# `--extra` ne s'applique qu'au paquet explicitement ciblé par `uv sync`
+# (`aelyn-backend` par défaut, qui n'a pas de table `optional-dependencies`
+# propre pour "voice"), jamais implicitement à un membre du workspace.
+# Sans cette passerelle, demander la voix depuis la racine sans
+# `--all-packages` (qui réintroduirait security-agent, cf. ci-dessus)
+# échouait avec "Extra `voice` is not defined... for `aelyn-backend`".
+voice = ["aelyn[voice]"]
+
+[tool.uv]
+package = false
+
+[tool.uv.workspace]
+members = [
+    "core",
+    "email-agent",
+    "security-agent",
+    "conversational-agent",
+    "career-agent",
+    "media-agent",
+    "aelyn-api",
+]
+
+[[tool.uv.index]]
+# Build CUDA de torch/torchvision (le PyPI public ne sert que du CPU sur
+# Windows), cu130 pour matcher le pilote NVIDIA installé (RTX 3060,
+# CUDA 13.0). Sans ça, sentence-transformers (embeddings du career-agent)
+# ET faster-whisper (transcription) tournaient tous les deux sur CPU
+# malgré EMBEDDING_DEVICE=cuda / WHISPER_DEVICE=cuda dans .env.
+name = "pytorch-cu130"
+url = "https://download.pytorch.org/whl/cu130"
+explicit = true
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[tool.uv.sources]
+aelyn = { workspace = true }
+aelyn-email = { workspace = true }
+aelyn-security = { workspace = true }
+aelyn-conversation = { workspace = true }
+aelyn-career = { workspace = true }
+aelyn-media = { workspace = true }
+aelyn-api = { workspace = true }

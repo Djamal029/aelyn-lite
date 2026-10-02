@@ -1,0 +1,88 @@
+.nav {
+  width: var(--sidebar-width);
+  flex-shrink: 0;
+  border-right: 1px solid var(--border-subtle);
+  background: var(--bg-panel);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--sp-3) var(--sp-2);
+}
+
+/* Below the tablet breakpoint the sidebar is no longer permanently
+ * docked (there isn't room for it alongside real content, see
+ * TopBar.module.css's menu button): it becomes an off-canvas drawer,
+ * toggled by AppShell, sliding in over the page instead of squeezing it. */
+@media (max-width: 768px) {
+  .nav {
+    position: fixed;
+    top: var(--topbar-height);
+    bottom: 0;
+    left: 0;
+    z-index: 60;
+    width: 240px;
+    max-width: 80vw;
+    box-shadow: var(--shadow-raised);
+    transform: translateX(-100%);
+    transition: transform var(--duration-base) var(--ease-standard);
+    overflow-y: auto;
+  }
+
+  .navOpen {
+    transform: translateX(0);
+  }
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-3);
+  /* Reserved, transparent by default, so the active state's accent line
+   * below doesn't shift layout when it turns on. */
+  border-left: 2px solid transparent;
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  font-size: var(--fs-sm);
+  letter-spacing: 0.03em;
+  text-decoration: none;
+  transition: background-color 0.12s ease, color 0.12s ease, border-color var(--duration-fast) var(--ease-standard),
+    box-shadow var(--duration-fast) var(--ease-standard), transform var(--duration-fast) var(--ease-standard);
+}
+
+.item:hover {
+  color: var(--text-primary);
+  background: var(--bg-hover);
+}
+
+.item:active {
+  transform: scale(0.98);
+}
+
+.itemActive {
+  color: var(--text-primary);
+  background: var(--bg-hover);
+  /* HUD treatment: a thin luminous accent line rather than a flat
+   * selected-fill, built on the same blue "active" color used
+   * everywhere else, just with a soft glow instead of a solid block. */
+  border-left-color: var(--state-blue);
+  box-shadow: inset 0 0 14px -8px var(--state-blue);
+}
+
+.itemActive:hover {
+  background: var(--bg-hover);
+}
+
+.label {
+  text-transform: uppercase;
+}
+
+.indicator {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+}

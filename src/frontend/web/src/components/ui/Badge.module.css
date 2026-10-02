@@ -1,0 +1,44 @@
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  padding: 1px var(--sp-2);
+  border-radius: var(--radius-sm);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  border: 1px solid transparent;
+  white-space: nowrap;
+  /* Badges like Settings' "live" indicator mount only once real data has
+   * actually arrived (e.g. GET /settings resolving); a quick fade marks
+   * that as a genuine state change rather than a static label that was
+   * always there. */
+  animation: fade-in var(--duration-fast) var(--ease-standard);
+}
+
+.info {
+  color: var(--state-neutral);
+  border-color: var(--border-default);
+  background: transparent;
+}
+
+.warning {
+  color: var(--state-amber);
+  background: var(--state-amber-dim);
+}
+
+.critical {
+  color: var(--state-red);
+  background: var(--state-red-dim);
+}
+
+.operational {
+  color: var(--state-green);
+  background: var(--state-green-dim);
+}
+
+.active {
+  color: var(--state-blue);
+  background: var(--state-blue-dim);
+}

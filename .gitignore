@@ -1,0 +1,43 @@
+# --- Secrets ---
+.env
+.env.*
+!.env.example
+
+# --- Données personnelles (profil CV réel) ---
+# `profil.example.json` reste versionné comme gabarit (données fictives) ;
+# `profil.json` (vraies infos perso : nom, téléphone, expériences) reste
+# strictement local, comme .env.
+src/backend/career-agent/src/aelyn_career/profil.json
+src/backend/career-agent/src/aelyn_career/profil.json.bak
+
+# --- Images WhatsApp collées à la racine ---
+WhatsApp Image*.jpeg
+WhatsApp Image*.jpg
+WhatsApp Image*.png
+
+# --- Python ---
+__pycache__/
+*.pyc
+.venv/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# --- Données locales ---
+*.db
+*.sqlite3
+
+# --- Données biométriques (photos de visages, embeddings) ---
+src/backend/security-agent/src/faces/
+*.npy
+
+# --- Node (frontend) ---
+node_modules/
+dist/
+build/
+
+# --- IDE / OS ---
+.vscode/
+.DS_Store
+Thumbs.db

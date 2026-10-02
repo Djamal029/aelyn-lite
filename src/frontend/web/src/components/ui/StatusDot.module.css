@@ -1,0 +1,51 @@
+.dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  transition: background-color var(--duration-base) var(--ease-standard);
+}
+
+.operational,
+.connected,
+.done,
+.info {
+  background: var(--state-green);
+}
+
+.degraded,
+.connecting,
+.warning,
+.executing {
+  background: var(--state-amber);
+}
+
+.offline,
+.disconnected,
+.critical,
+.error {
+  background: var(--state-red);
+}
+
+.neutral {
+  background: var(--state-neutral);
+}
+
+.active {
+  background: var(--state-blue);
+}
+
+.pulse {
+  animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}

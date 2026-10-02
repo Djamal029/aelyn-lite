@@ -1,0 +1,120 @@
+/*
+ * Design tokens: AELYN control console.
+ *
+ * Direction: "soft dark", a calm, daily-use console, not a raw
+ * terminal/NOC wall. Color still communicates STATE, never decoration:
+ *   neutral = information / idle
+ *   green   = operational
+ *   amber   = warning
+ *   red     = critical
+ *   blue    = active / selected
+ * But state colors are muted/desaturated rather than neon-on-black,
+ * surfaces are navy-tinted rather than near-black, corners are rounded
+ * enough to feel like a considered product, and panels separate from
+ * each other with a soft shadow + lightness step rather than a hairline
+ * border alone. Still no gradients, no glass/blur.
+ *
+ * HUD accents (a real Iron-Man-style instrument-panel language, not a
+ * generic "futuristic dashboard" skin): thin glowing lines and radial
+ * gauges built entirely on the existing blue "active" color above, never
+ * a new accent color. The glow is a soft, low-opacity bloom reserved for
+ * things that are genuinely active/selected/focused or for the voice
+ * orb's own instrument face, not a decorative halo on static content.
+ * See --glow-blue-sm/--glow-blue-md below.
+ */
+
+:root {
+  /* ---- surfaces (soft dark navy, never near-black) ------------------ */
+  --bg-app: #0f1420;
+  --bg-panel: #161d2e;
+  --bg-panel-raised: #1c2438;
+  --bg-inset: #10141f;
+  --bg-hover: #202942;
+  --bg-selected: #22304d;
+  /* A warm-neutral surface used only to distinguish the user's own chat
+   * turn from AELYN's (ChatMessage.module.css), deliberately NOT a
+   * state color (no alert/notification meaning), just a different hue
+   * family from the app's cool navy so two speakers in the same thread
+   * read as genuinely different without either side looking selected
+   * or flagged. */
+  --bg-warm: #241f1b;
+  --border-warm: rgba(255, 244, 230, 0.08);
+
+  --border-subtle: rgba(255, 255, 255, 0.06);
+  --border-default: rgba(255, 255, 255, 0.1);
+  --border-strong: rgba(255, 255, 255, 0.18);
+
+  /* ---- text --------------------------------------------------------*/
+  --text-primary: #e9ebf2;
+  --text-secondary: #a3acc0;
+  --text-muted: #737d95;
+  --text-disabled: #4d5568;
+
+  /* ---- state colors: muted, not neon ---------------------------------*/
+  --state-neutral: #9aa3b8;
+  --state-neutral-dim: #5c6478;
+  --state-green: #6bbf94;
+  --state-green-dim: #24382f;
+  --state-amber: #d7a563;
+  --state-amber-dim: #3d3122;
+  --state-red: #dd8080;
+  --state-red-dim: #3d2729;
+  --state-blue: #7fa1e3;
+  --state-blue-dim: #232f4c;
+
+  /* ---- typography ----------------------------------------------------*/
+  --font-ui: -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, "Cascadia Mono", "Consolas", "SFMono-Regular", Menlo, monospace;
+
+  --fs-xs: 11px;
+  --fs-sm: 12px;
+  --fs-base: 13px;
+  --fs-md: 14px;
+  --fs-lg: 17px;
+  --fs-xl: 21px;
+
+  --lh-tight: 1.25;
+  --lh-normal: 1.55;
+
+  /* ---- spacing scale: a bit more generous throughout ------------------*/
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 14px;
+  --sp-4: 20px;
+  --sp-5: 24px;
+  --sp-6: 28px;
+  --sp-8: 36px;
+
+  /* ---- misc ----------------------------------------------------------*/
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 18px;
+  --topbar-height: 56px;
+  --sidebar-width: 208px;
+  --commandbar-height: 96px;
+
+  /* Gentle elevation: soft shadow + a hairline border for edge
+   * definition, not a hard cast shadow. This is what separates panels
+   * from the app background and from each other instead of relying on
+   * borders alone. */
+  --shadow-panel: 0 1px 2px rgba(4, 6, 12, 0.4), 0 8px 24px -12px rgba(4, 6, 12, 0.55);
+  --shadow-raised: 0 2px 4px rgba(4, 6, 12, 0.45), 0 16px 36px -16px rgba(4, 6, 12, 0.6);
+  --elevate-border: var(--border-subtle);
+
+  /* ---- motion: calm and instant-feeling, never bouncy --------------- */
+  /* One shared easing curve (a gentle deceleration, no overshoot) and a
+   * short duration scale so every transition/animation in the app reads
+   * as one consistent, considered system instead of a pile of one-off
+   * timings. Used for state transitions (content appearing/changing) and
+   * micro-interactions (hover/press), never for decorative motion on
+   * things that don't actually change. */
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --duration-fast: 120ms;
+  --duration-base: 180ms;
+  --duration-slow: 240ms;
+
+  /* ---- HUD glow: same blue as --state-blue, never a new color -------- */
+  --glow-blue-sm: 0 0 5px rgba(127, 161, 227, 0.5);
+  --glow-blue-md: 0 0 10px rgba(127, 161, 227, 0.5), 0 0 3px rgba(127, 161, 227, 0.65);
+  --glow-green-md: 0 0 10px rgba(107, 191, 148, 0.5), 0 0 3px rgba(107, 191, 148, 0.65);
+}

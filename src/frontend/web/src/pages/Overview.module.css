@@ -1,0 +1,61 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.grid {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--sp-4);
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--sp-4);
+}
+
+.camerasRow {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--sp-4);
+}
+
+@media (max-width: 700px) {
+  .camerasRow {
+    grid-template-columns: 1fr;
+  }
+
+  .grid {
+    padding: var(--sp-3);
+  }
+}
+
+.nodeSummary {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.nodeLine {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+}
+
+.link {
+  font-size: var(--fs-xs);
+  color: var(--state-blue);
+  text-decoration: none;
+}
+
+.link:hover {
+  text-decoration: underline;
+}
+
+.logBody {
+  height: 200px;
+}

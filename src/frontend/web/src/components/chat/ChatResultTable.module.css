@@ -1,0 +1,62 @@
+/* Same borders/spacing language as components/security/EventsTable's
+ * table (hairline row dividers, sticky uppercase header, hover row),
+ * scaled down to fit inside a chat bubble instead of a full panel. */
+.wrap {
+  margin-top: var(--sp-2);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  animation: fade-in-up var(--duration-base) var(--ease-standard);
+}
+
+.scroll {
+  max-height: 320px;
+  overflow: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--fs-sm);
+}
+
+.table th {
+  text-align: left;
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 500;
+  padding: var(--sp-1) var(--sp-2);
+  border-bottom: 1px solid var(--border-subtle);
+  position: sticky;
+  top: 0;
+  background: var(--bg-panel-raised);
+  white-space: nowrap;
+}
+
+.table td {
+  padding: 6px var(--sp-2);
+  border-bottom: 1px solid var(--border-subtle);
+  color: var(--text-primary);
+  vertical-align: top;
+  transition: box-shadow var(--duration-fast) var(--ease-standard);
+}
+
+.table tr:last-child td {
+  border-bottom: none;
+}
+
+/* The table already sits on a tinted chat-bubble background, so a flat
+ * hover fill here would barely read; a thin luminous left line (the same
+ * HUD accent used for row emphasis elsewhere) still shows up clearly. */
+.table tr:hover td:first-child {
+  box-shadow: inset 2px 0 0 var(--state-blue), 0 0 8px -4px var(--state-blue);
+}
+
+.score,
+.date {
+  font-family: var(--font-mono);
+  color: var(--text-secondary);
+  white-space: nowrap;
+}

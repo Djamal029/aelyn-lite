@@ -1,0 +1,165 @@
+/* Classic messaging layout: each turn is a flex row spanning the full
+ * width, and the card inside floats to the left (AELYN) or right
+ * (user), a normal chat arrangement, kept calm with soft cards rather
+ * than pill-shaped bubbles with tails. */
+.wrap {
+  display: flex;
+  margin: var(--sp-2) var(--sp-4);
+  animation: fade-in-up var(--duration-base) var(--ease-standard);
+}
+
+.wrapAelyn {
+  justify-content: flex-start;
+}
+
+.wrapUser {
+  justify-content: flex-end;
+}
+
+.row {
+  max-width: 74%;
+  padding: var(--sp-3) var(--sp-4);
+  background: var(--bg-panel-raised);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  transition: border-color 0.15s ease;
+  min-width: 0;
+}
+
+.row:hover {
+  border-color: var(--border-default);
+}
+
+.aelyn {
+  /* Fully neutral: the exact same surface as every other panel in the
+   * app, no accent tint. Only the sender label (below) carries a small
+   * blue identity mark. */
+  border-bottom-left-radius: 4px;
+}
+
+.user {
+  /* A distinct but equally muted warm-neutral surface, not a state
+   * color: enough to read as "the other speaker" at a glance without
+   * looking like an alert. */
+  background: var(--bg-warm);
+  border-color: var(--border-warm);
+  border-bottom-right-radius: 4px;
+}
+
+.header {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-1);
+}
+
+.sender {
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.senderAelyn {
+  color: var(--state-blue);
+}
+
+.timestamp {
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+}
+
+.via {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  padding: 0 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.understood {
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  color: var(--state-blue);
+  margin-bottom: var(--sp-2);
+  padding: 4px var(--sp-2);
+  background: var(--state-blue-dim);
+  border-radius: var(--radius-sm);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+}
+
+.text {
+  font-size: var(--fs-base);
+  color: var(--text-primary);
+  white-space: pre-wrap;
+  line-height: var(--lh-normal);
+  animation: fade-in var(--duration-fast) var(--ease-standard);
+}
+
+/* "AELYN is thinking" indicator: shown in place of `.text` while an
+ * AELYN turn is pending (see pages/Assistant.tsx's placeholder message),
+ * so the chat never sits frozen and blank between the user's message and
+ * the real reply. Calm and small, not a spinner or a loud animation. */
+.thinking {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  height: 20px;
+  padding: 2px 0;
+}
+
+.dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-muted);
+  animation: thinking-dot 1.2s ease-in-out infinite;
+}
+
+.dot:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+.dot:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+/* Phone widths: there's much less room to spare for the left/right
+ * conversation-flow margin, so bubbles (and whatever table they carry)
+ * get to use most of the available width instead of staying capped at
+ * 74%, which would otherwise squeeze a result table into an unusably
+ * narrow column. */
+@media (max-width: 600px) {
+  .row {
+    max-width: 92%;
+  }
+}
+
+.statusRow {
+  margin-top: var(--sp-2);
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+}
+
+.statusExecuting {
+  color: var(--state-amber);
+}
+
+.statusDone {
+  color: var(--state-green);
+}
+
+.statusError {
+  color: var(--state-red);
+}
+
+.statusCancelled {
+  color: var(--text-muted);
+}

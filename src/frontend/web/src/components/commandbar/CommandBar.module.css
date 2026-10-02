@@ -1,0 +1,115 @@
+.bar {
+  border-top: 1px solid var(--border-subtle);
+  background: var(--bg-panel);
+  box-shadow: 0 -12px 24px -18px rgba(4, 6, 12, 0.6);
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.scrollback {
+  padding: var(--sp-3) var(--sp-3) 0;
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  max-height: 132px;
+  overflow-y: auto;
+}
+
+.entry {
+  margin-bottom: var(--sp-2);
+  padding: var(--sp-2) var(--sp-3);
+  background: var(--bg-panel-raised);
+  border-radius: var(--radius-sm);
+  animation: fade-in-up var(--duration-base) var(--ease-standard);
+}
+
+.prompt {
+  color: var(--text-primary);
+}
+
+.promptGlyph {
+  color: var(--state-blue);
+  margin-right: var(--sp-1);
+}
+
+.understood {
+  color: var(--state-blue);
+  padding-left: var(--sp-3);
+  margin-top: 3px;
+}
+
+.result {
+  color: var(--text-secondary);
+  padding-left: var(--sp-3);
+  white-space: pre-wrap;
+  margin-top: 2px;
+}
+
+.status {
+  padding-left: var(--sp-3);
+  margin-top: 3px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.statusExecuting {
+  color: var(--state-amber);
+}
+
+.statusDone {
+  color: var(--state-green);
+}
+
+.statusError {
+  color: var(--state-red);
+}
+
+.inputRow {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-3);
+}
+
+.glyph {
+  font-family: var(--font-mono);
+  color: var(--state-blue);
+  font-weight: 700;
+}
+
+.input {
+  flex: 1;
+  background: var(--bg-inset);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  padding: 9px var(--sp-3);
+  font-family: var(--font-mono);
+  font-size: var(--fs-base);
+  color: var(--text-primary);
+  transition: border-color var(--duration-fast) var(--ease-standard), box-shadow var(--duration-fast) var(--ease-standard);
+}
+
+.input:focus {
+  outline: none;
+  border-color: var(--state-blue);
+  box-shadow: var(--glow-blue-sm);
+}
+
+.voiceButton {
+  border: 1px solid var(--border-default);
+  background: var(--bg-inset);
+  border-radius: var(--radius-sm);
+  padding: 8px var(--sp-3);
+  font-size: var(--fs-xs);
+  color: var(--text-secondary);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  flex-shrink: 0;
+  transition: border-color var(--duration-fast) var(--ease-standard), color var(--duration-fast) var(--ease-standard);
+}
+
+.voiceButton:hover {
+  border-color: var(--state-blue);
+  color: var(--state-blue);
+}

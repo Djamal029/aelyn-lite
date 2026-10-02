@@ -1,0 +1,60 @@
+.scroll {
+  position: relative;
+  overflow-y: auto;
+  max-height: 360px;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--fs-sm);
+}
+
+.table th {
+  text-align: left;
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 500;
+  padding: var(--sp-1) var(--sp-3);
+  border-bottom: 1px solid var(--border-subtle);
+  position: sticky;
+  top: 0;
+  background: var(--bg-panel);
+}
+
+.table td {
+  padding: 6px var(--sp-3);
+  border-bottom: 1px solid var(--border-subtle);
+  color: var(--text-primary);
+  white-space: nowrap;
+  transition: background-color var(--duration-fast) var(--ease-standard), box-shadow var(--duration-fast) var(--ease-standard);
+}
+
+/* HUD treatment: row emphasis reads primarily as a thin luminous left
+ * line (the same blue used for every other active/selected accent in
+ * the app) rather than a flat background swap; the faint wash underneath
+ * is kept minimal, just enough to still scan the row at a glance. */
+.table tr:hover td {
+  background: var(--bg-panel-raised);
+}
+
+.table tr:hover td:first-child {
+  box-shadow: inset 2px 0 0 var(--state-blue), 0 0 8px -4px var(--state-blue);
+}
+
+.time {
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+}
+
+.detail {
+  white-space: normal;
+  color: var(--text-secondary);
+}
+
+.confidence {
+  font-family: var(--font-mono);
+  color: var(--text-secondary);
+}

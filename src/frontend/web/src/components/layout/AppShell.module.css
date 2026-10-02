@@ -1,0 +1,37 @@
+.shell {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+.body {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+}
+
+.content {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+}
+
+.pageEnter {
+  height: 100%;
+  min-height: 0;
+  animation: fade-in-up var(--duration-base) var(--ease-standard);
+}
+
+/* Only ever rendered while the narrow-screen drawer (Sidebar.module.css)
+ * is open; on desktop the drawer never opens so this never mounts. */
+.backdrop {
+  position: fixed;
+  top: var(--topbar-height);
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 55;
+  background: rgba(5, 6, 8, 0.6);
+  animation: fade-in var(--duration-fast) var(--ease-standard);
+}
