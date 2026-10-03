@@ -107,6 +107,26 @@ class Journal:
                 row.status = status.value
                 session.commit()
 
+    def revise_proposed(
+        self,
+        action_id: int,
+        *,
+        action: str,
+        summary: str,
+        payload: dict[str, Any],
+    ) -> bool:
+        """Corrige une proposition encore en attente, sans toucher à une
+        action déjà exécutée, rejetée ou en échec."""
+        with Session(self._engine) as session:
+            row = session.get(ActionRow, action_id)
+            if row is None or row.status != ActionStatus.PROPOSED.value:
+                return False
+            row.action = action
+            row.summary = summary
+            row.payload = json.dumps(payload, ensure_ascii=False)
+            session.commit()
+            return True
+
     # ------------------------------------------------------------------- read
 
     def get(self, action_id: int) -> Action | None:

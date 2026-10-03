@@ -178,6 +178,16 @@ class ProfilManager:
         for exp in self.profil.get('experience'):
             text = f"{exp['role']} chez {exp['company']} sur la période de {exp['period']} à/en {exp['location']}.\n"
             text += exp['description'] + "\n"
+            if exp.get("highlights"):
+                text += "Faits marquants : " + " ; ".join(exp["highlights"]) + ".\n"
+            if exp.get("methodology"):
+                text += "Méthodes : " + ", ".join(exp["methodology"]) + ".\n"
+            if exp.get("results"):
+                results = "; ".join(
+                    f"{key.replace('_', ' ')} : {value}"
+                    for key, value in exp["results"].items()
+                )
+                text += "Résultats : " + results + ".\n"
             text += f"Technologies : {', '.join(exp['technologies'])}" if exp.get("technologies") else ""
             chunks.append({
                 "type": "experience",

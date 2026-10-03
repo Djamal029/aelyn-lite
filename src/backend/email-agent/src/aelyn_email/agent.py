@@ -44,6 +44,41 @@ class EmailAgent:
         self.llm = llm or LLMClient()
         self.journal = journal or Journal(settings.journal_path)
 
+    @staticmethod
+    def _apply_triage_guardrails(analyse: Triage) -> Triage:
+        """Une newsletter ou un spam ne demande pas de réponse urgente.
+        Le LLM attribuait parfois urgence 5 à des promotions et proposait
+        même d'y répondre, malgré le prompt contraire.
+
+        Plus largement : une action passive (archiver/ignorer) que le LLM
+        choisit LUI-MÊME, même hors catégorie newsletter/spam (ex. une
+        newsletter rangée en catégorie "autre"), ne doit pas non plus
+        garder une urgence/un brouillon incohérents — constaté en direct,
+        plusieurs newsletters catégorisées "autre" par le LLM gardaient
+        urgence=5 alors qu'il avait déjà correctement proposé archiver,
+        la correction ci-dessous ne portant jusque-là que sur une
+        catégorie newsletter/spam explicite, jamais sur l'action réellement
+        choisie en dehors de ces deux catégories."""
+        if analyse.categorie is Category.NEWSLETTER:
+            action = ProposedAction.ARCHIVER
+        elif analyse.categorie is Category.SPAM:
+            action = ProposedAction.IGNORER
+        else:
+            action = analyse.action_proposee
+
+        if action not in (ProposedAction.ARCHIVER, ProposedAction.IGNORER):
+            return analyse
+        if action == analyse.action_proposee and analyse.urgence == 1 and analyse.brouillon_reponse is None:
+            return analyse
+
+        return analyse.model_copy(
+            update={
+                "urgence": 1,
+                "action_proposee": action,
+                "brouillon_reponse": None,
+            }
+        )
+
     # ------------------------------------------------------------- 1. triage
 
     def triage(self, limit: int | None = None) -> list[tuple[Mail, Triage, int]]:
@@ -100,6 +135,23 @@ class EmailAgent:
                         mail.uid,
                     )
                 else:
+                    corrected = self._apply_triage_guardrails(analyse)
+                    if corrected != analyse:
+                        payload = {
+                            **action.payload,
+                            "categorie": corrected.categorie.value,
+                            "urgence": corrected.urgence,
+                            "resume": corrected.resume,
+                            "justification": corrected.justification,
+                            "brouillon": corrected.brouillon_reponse,
+                        }
+                        self.journal.revise_proposed(
+                            action.id,
+                            action=corrected.action_proposee.value,
+                            summary=f"{mail.subject} : {corrected.resume}",
+                            payload=payload,
+                        )
+                        analyse = corrected
                     resultats.append((mail, analyse, action.id))
                     continue
 
@@ -112,6 +164,8 @@ class EmailAgent:
             except LLMError:
                 logger.exception("Triage impossible pour le mail %s", mail.uid)
                 continue
+
+            analyse = self._apply_triage_guardrails(analyse)
 
             if analyse.action_proposee is ProposedAction.REPONDRE and mail.is_no_reply:
                 # Garde-fou déterministe : le LLM suit cette règle de façon
@@ -293,6 +347,16 @@ def run_command(
                 print("Aucun mail non lu.")
                 return 0, [], None
             if plain:
+                # Résumé d'abord (même convention que `chercher_offres`,
+                # "N offre(s) trouvée(s) : ..."), sinon le texte renvoyé à
+                # l'agent conversationnel (et donc au chat/à la voix) est
+                # directement la première ligne de mail brute ("[22624]
+                # Semafor Africa <...> : ...") au lieu d'une vraie phrase -
+                # lu tel quel par la synthèse vocale, ou affiché comme
+                # texte principal de la bulle de chat (celle-ci tronque
+                # `text` à sa première ligne dès qu'un tableau est montré
+                # à côté, cf. `ChatMessage.tsx`).
+                print(f"{len(mails)} mail(s) non lu(s) :")
                 for mail in mails:
                     print(f"[{mail.uid}] {mail.sender} <{mail.sender_email}> : {mail.subject}")
             else:

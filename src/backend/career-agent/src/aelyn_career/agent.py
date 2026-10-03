@@ -53,10 +53,15 @@ def run_command(
             max_offers=max(20, top_n),
         )
         if not offres:
-            print("Aucune offre trouvée.")
+            criteria = f" pour « {mots_cles} »" if mots_cles else ""
+            print(f"Aucune offre trouvée{criteria}.")
             return 0, []
 
-        print(f"{len(offres)} offre(s) trouvée(s), classées par pertinence avec ton profil :")
+        requested = f" (maximum demandé : {limit})" if limit is not None else ""
+        print(
+            f"{len(offres)} offre(s) trouvée(s){requested}, "
+            "classées par pertinence avec ton profil :"
+        )
         for offre in offres:
             entreprise = offre.get("entreprise", {}).get("nom", "?")
             lieu = offre.get("lieuTravail", {}).get("libelle", "?")

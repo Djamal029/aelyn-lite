@@ -1054,7 +1054,7 @@ class ConversationalAgent:
                 self._say("Je n'ai pas pu comprendre cette phrase (LLM indisponible).")
                 return
 
-        if intent.commande == "chercher_offres" and intent.limit is None:
+        if intent.commande == "chercher_offres":
             # Filet de sécurité déterministe : constaté en direct, même
             # avec une consigne explicite dans SYSTEM_INTENT ET une
             # description portée par le champ lui-même, mistral:7b laissait
@@ -1065,14 +1065,14 @@ class ConversationalAgent:
             # d'offres n'a qu'une lecture possible (combien de résultats),
             # inutile de laisser ça à l'appréciation (variable) du LLM.
             match = _OFFERS_LIMIT_RE.search(_normalize(phrase))
-            if match:
+            if match and intent.limit != int(match.group(1)):
                 intent = intent.model_copy(update={"limit": int(match.group(1))})
 
-        if intent.commande == "chercher_offres" and not intent.mots_cles:
+        if intent.commande == "chercher_offres":
             match = _OFFERS_KEYWORDS_RE.search(phrase)
             if match:
                 keywords = _TRAILING_CONTRACT_RE.sub("", match.group(1)).strip(" ?!.")
-                if keywords:
+                if keywords and keywords != intent.mots_cles:
                     intent = intent.model_copy(update={"mots_cles": keywords})
 
         if intent.commande in {"valider", "rejeter"} and intent.action_id is None:
@@ -1177,6 +1177,7 @@ class ConversationalAgent:
             )
         except LLMError as exc:
             print(f"Erreur : {exc}", file=sys.stderr)
+            self._say("Le modèle local n'a pas pu répondre. Réessaie dans un instant.")
             return
 
         self._conversation_history.append({"role": "user", "content": phrase})
@@ -1405,6 +1406,10 @@ class ConversationalAgent:
             cv = self._run_long_task(self.application_writer.draft_cv, offer_text(offre))
         except LLMError as exc:
             print(f"Erreur : {exc}", file=sys.stderr)
+            self._say(
+                "Je n'ai pas pu préparer le CV : le modèle local s'est arrêté. "
+                "Réessaie."
+            )
             return
 
         # Un CV complet est illisible à l'oral (structure, pas prose) :
@@ -1459,6 +1464,10 @@ class ConversationalAgent:
             )
         except LLMError as exc:
             print(f"Erreur : {exc}", file=sys.stderr)
+            self._say(
+                "Je n'ai pas pu générer la lettre : le modèle local s'est arrêté. "
+                "Réessaie."
+            )
             return
 
         # Gardé pour « affine cette lettre de motivation » (`_try_refine_lm`).
@@ -1520,6 +1529,10 @@ class ConversationalAgent:
             )
         except LLMError as exc:
             print(f"Erreur : {exc}", file=sys.stderr)
+            self._say(
+                "Je n'ai pas pu affiner la lettre : le modèle local s'est arrêté. "
+                "Réessaie."
+            )
             return
 
         # Même correctif que `_run_prepare_lm` : sans réaffecter
@@ -1570,6 +1583,10 @@ class ConversationalAgent:
                 summary = self._say_stream(self.llm.text_stream(system=SYSTEM_SUMMARY, user=user_text))
             except LLMError as exc:
                 print(f"Erreur : {exc}", file=sys.stderr)
+                self._say(
+                    "Je n'ai pas pu faire le résumé : le modèle local s'est arrêté. "
+                    "Réessaie."
+                )
                 return True
             if kind == "offer":
                 # `_say_stream` a déjà mémorisé `summary` seul (son propre
@@ -1627,6 +1644,10 @@ class ConversationalAgent:
             )
         except LLMError as exc:
             print(f"Erreur : {exc}", file=sys.stderr)
+            self._say(
+                "Je n'ai pas pu rédiger le brouillon : le modèle local s'est arrêté. "
+                "Réessaie."
+            )
 
     def _try_reformulate(self, phrase: str) -> bool:
         """« reformule ça » : redit la DERNIÈRE chose dite par AELYN, autrement."""
@@ -1644,6 +1665,9 @@ class ConversationalAgent:
             )
         except LLMError as exc:
             print(f"Erreur : {exc}", file=sys.stderr)
+            self._say(
+                "Je n'ai pas pu reformuler : le modèle local s'est arrêté. Réessaie."
+            )
             return True
         return True
 
@@ -1806,13 +1830,21 @@ class ConversationalAgent:
                         print(f"La caméra semble inaccessible : {exc}")
                         code = 1
             elif intent.commande in CAREER_COMMANDS:
-                code, offres = career_run_command(
-                    intent.commande,
-                    offers_agent=self.offers_agent,
-                    mots_cles=intent.mots_cles,
-                    contract_type=intent.contract_type,
-                    limit=intent.limit,
-                )
+                try:
+                    code, offres = career_run_command(
+                        intent.commande,
+                        offers_agent=self.offers_agent,
+                        mots_cles=intent.mots_cles,
+                        contract_type=intent.contract_type,
+                        limit=intent.limit,
+                    )
+                except Exception:
+                    logger.exception("Recherche d'offres échouée")
+                    print(
+                        "La recherche d'offres a échoué : le service d'emploi ou "
+                        "le modèle local est indisponible. Réessaie dans un instant."
+                    )
+                    code, offres = 1, []
             else:
                 kwargs = dict(
                     limit=intent.limit,

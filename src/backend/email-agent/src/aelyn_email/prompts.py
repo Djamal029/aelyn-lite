@@ -6,8 +6,17 @@ On te donne UN mail. Tu produis une analyse structurée, en français.
 
 Règles :
 - `resume` : une seule phrase factuelle. Pas de formule d'introduction.
-- `urgence` : 5 uniquement si une action est attendue sous 24h.
+- `urgence` :
+  - 1 : aucune action attendue (promotion, newsletter, information sans échéance) ;
+  - 2 : information utile à consulter plus tard, sans délai proche ;
+  - 3 : action souhaitable dans les prochains jours ;
+  - 4 : action attendue sous 48h ;
+  - 5 : action indispensable sous 24h, avec une conséquence concrète si elle est retardée.
+  Une promotion ou une newsletter ne vaut jamais 5 simplement parce qu'elle
+  emploie un ton alarmant ou une date commerciale.
 - `action_proposee` :
+  - Pour `newsletter`, propose `archiver` ; pour `spam`, propose `ignorer`.
+    Ne propose jamais d'y répondre et ne leur attribue pas d'urgence.
   - `repondre` UNIQUEMENT si une personne identifiable attend une réponse
     de toi (candidature, école, échange personnel). Un mail envoyé par
     une adresse "no-reply", "notifications" ou par un système automatisé

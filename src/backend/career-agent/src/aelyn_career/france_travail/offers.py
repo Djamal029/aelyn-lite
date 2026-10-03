@@ -4,6 +4,7 @@ import re
 import dotenv
 import requests
 
+
 from aelyn.core.config import settings
 
 # Sépare sur la virgule ou sur " et "/" & " : un LLM qui extrait des
@@ -44,6 +45,26 @@ CONTRACT_TYPE_PARAMS = {
     "alternance": {},
     "stage": {"typeContrat": "CDD"},
 }
+_RANGE_PAGE_SIZE = 150
+
+
+def _offer_dedupe_key(offre: dict) -> tuple[str, ...]:
+    """Identité lisible d'une annonce pour éliminer les doublons dont
+    France Travail fournit parfois des identifiants différents après une
+    recherche élargie. Garde les postes si entreprise, lieu ou contrat varie."""
+    entreprise = offre.get("entreprise") or {}
+    lieu = offre.get("lieuTravail") or {}
+    values = (
+        offre.get("intitule", ""),
+        entreprise.get("nom", ""),
+        lieu.get("libelle", ""),
+        offre.get("typeContrat", ""),
+    )
+    key = tuple(
+        re.sub(r"\s+", " ", re.sub(r"[^\w]+", " ", str(value).casefold())).strip()
+        for value in values
+    )
+    return key if any(key) else (str(offre.get("id", "")),)
 
 
 class FTOffers:
@@ -121,7 +142,12 @@ class FTOffers:
         # plusieurs jours d'exécution continue).
         self.access_token = token_data["access_token"]
 
-    def search_offers_for(self, mot_cle: str, contract_type: str | None = None):
+    def search_offers_for(
+        self,
+        mot_cle: str,
+        contract_type: str | None = None,
+        limit: int | None = None,
+    ):
         """Recherche pour UN seul mot-clé (l'API combine plusieurs `motsCles`
         séparés par virgule en ET, ce qui donne 0 résultat dès qu'on en met
         plusieurs de larges en même temps).
@@ -137,55 +163,94 @@ class FTOffers:
         if contract_type:
             params.update(CONTRACT_TYPE_PARAMS.get(contract_type.lower(), {}))
 
-        # Un jeton expiré renvoie 401 : on se reconnecte UNE fois et on
-        # retente, plutôt que de dépendre entièrement de l'appelant pour
-        # savoir quand rafraîchir (cf. `connect()` ci-dessus — sur un
-        # `FTOffers` de longue durée, personne d'autre ne le fera).
-        for attempt in range(2):
+        if limit is not None and limit < 1:
+            return [], None
+
+        requested = limit
+        start = 0
+        offres_filtrees: list[dict] = []
+        possible_filters = None
+        while True:
+            page_size = (
+                min(_RANGE_PAGE_SIZE, requested - len(offres_filtrees))
+                if requested
+                else None
+            )
             headers = {
                 "Authorization": f"Bearer {self.access_token}",
                 "Accept": "application/json",
             }
-            response = requests.get(url=self.url, headers=headers, params=params)
-            status_code = response.status_code
-            if status_code == 401 and attempt == 0:
-                self.connect()
-                continue
-            break
+            if page_size is not None:
+                headers["Range"] = f"{start}-{start + page_size - 1}"
 
-        if status_code == 204:
-            # Recherche réussie, aucune offre ne correspond aux critères.
-            return [], None
-        if status_code not in (200, 206):
-            # 206 = contenu partiel (pagination via l'en-tête Content-Range),
-            # toujours un succès pour cette API.
-            raise Exception(f"Recherche d'offres France Travail échouée ({status_code})")
+            # Un jeton expiré renvoie 401 : on se reconnecte UNE fois et on
+            # retente, plutôt que de dépendre entièrement de l'appelant pour
+            # savoir quand rafraîchir (cf. `connect()` ci-dessus — sur un
+            # `FTOffers` de longue durée, personne d'autre ne le fera).
+            for attempt in range(2):
+                response = requests.get(url=self.url, headers=headers, params=params)
+                status_code = response.status_code
+                if status_code == 401 and attempt == 0:
+                    self.connect()
+                    headers["Authorization"] = f"Bearer {self.access_token}"
+                    continue
+                break
 
-        data = response.json()
-        possible_filters = data.get("filtresPossibles")
-        offres = data.get("resultats", [])
+            if status_code == 204:
+                break
+            if status_code not in (200, 206):
+                # 206 = contenu partiel (pagination via Range/Content-Range),
+                # toujours un succès pour cette API.
+                raise Exception(
+                    f"Recherche d'offres France Travail échouée ({status_code})"
+                )
 
-        if contract_type:
-            contract_type = contract_type.lower()
-            if contract_type == "alternance":
-                offres = [offre for offre in offres if offre.get("alternance")]
-            elif contract_type == "stage":
-                # Pas de code API dédié au stage (cf. CONTRACT_TYPE_PARAMS) :
-                # on ne garde que les CDD non-alternance dont l'intitulé ou
-                # la description mentionne "stage".
-                offres = [
-                    offre
-                    for offre in offres
-                    if not offre.get("alternance")
-                    and (
-                        "stage" in offre.get("intitule", "").lower()
-                        or "stage" in offre.get("description", "").lower()
-                    )
-                ]
+            data = response.json()
+            if data.get("filtresPossibles") is not None:
+                possible_filters = data["filtresPossibles"]
+            page = data.get("resultats", [])
+            offres = page
 
-        return offres, possible_filters
+            if contract_type:
+                normalized_type = contract_type.lower()
+                if normalized_type == "alternance":
+                    offres = [offre for offre in offres if offre.get("alternance")]
+                elif normalized_type == "stage":
+                    # Pas de code API dédié au stage : filtre après coup sur
+                    # les CDD non-alternance qui le mentionnent.
+                    offres = [
+                        offre
+                        for offre in offres
+                        if not offre.get("alternance")
+                        and (
+                            "stage" in offre.get("intitule", "").lower()
+                            or "stage" in offre.get("description", "").lower()
+                        )
+                    ]
 
-    def _search_relaxed(self, mot_cle: str, contract_type: str | None):
+            offres_filtrees.extend(offres)
+            if requested is None or len(offres_filtrees) >= requested:
+                break
+
+            content_range = (getattr(response, "headers", {}) or {}).get(
+                "Content-Range", ""
+            )
+            total_match = re.search(r"/(\d+)$", content_range)
+            if not page or len(page) < page_size:
+                break
+            start += len(page)
+            if total_match and start >= int(total_match.group(1)):
+                break
+
+        resultats = offres_filtrees[:requested] if requested else offres_filtrees
+        return resultats, possible_filters
+
+    def _search_relaxed(
+        self,
+        mot_cle: str,
+        contract_type: str | None,
+        limit: int | None = None,
+    ):
         """`search_offers_for(mot_cle)` puis, UNIQUEMENT si ça ne renvoie rien
         ET que `mot_cle` a 3 mots significatifs ou plus, relâche la requête
         au lieu de rendre une liste vide pour une phrase pourtant pertinente
@@ -200,7 +265,9 @@ class FTOffers:
         Les mots-clés à 1-2 mots (le cas courant, déjà couvert par
         `search_offers_for` seul) ne déclenchent jamais ce relâchement.
         """
-        offres, filtres = self.search_offers_for(mot_cle, contract_type=contract_type)
+        offres, filtres = self.search_offers_for(
+            mot_cle, contract_type=contract_type, limit=limit
+        )
         if offres:
             return offres, filtres
 
@@ -215,7 +282,9 @@ class FTOffers:
             trouvees: dict[str, dict] = {}
             dernier_filtre = filtres
             for candidate in candidates:
-                sub_offres, sub_filtres = self.search_offers_for(candidate, contract_type=contract_type)
+                sub_offres, sub_filtres = self.search_offers_for(
+                    candidate, contract_type=contract_type, limit=limit
+                )
                 if sub_filtres is not None:
                     dernier_filtre = sub_filtres
                 for offre in sub_offres:
@@ -225,7 +294,12 @@ class FTOffers:
 
         return offres, filtres
 
-    def search_offers(self, contract_type: str | None = None, keywords: str | None = None):
+    def search_offers(
+        self,
+        contract_type: str | None = None,
+        keywords: str | None = None,
+        limit: int | None = None,
+    ):
         """Une recherche par mot-clé (de `keywords` si fourni, sinon
         `self.keywords`), résultats fusionnés, dédupliqués par identifiant
         d'offre, triés du plus récent au plus ancien (`dateCreation`).
@@ -233,13 +307,16 @@ class FTOffers:
         `keywords` permet une recherche ponctuelle (ex. "EDF", "Data
         Scientist") sans changer la configuration par défaut de l'agent.
         """
+        if limit is not None and limit < 1:
+            return [], None
+
         source = keywords if keywords else self.keywords
         mots_cles = [mot.strip() for mot in _KEYWORD_SEPARATOR_RE.split(source) if mot.strip()]
 
         offres_par_id: dict[str, dict] = {}
         possible_filters = None
         for mot_cle in mots_cles:
-            offres, filtres = self._search_relaxed(mot_cle, contract_type)
+            offres, filtres = self._search_relaxed(mot_cle, contract_type, limit)
             if filtres is not None:
                 possible_filters = filtres
             for offre in offres:
@@ -247,4 +324,13 @@ class FTOffers:
 
         resultats = list(offres_par_id.values())
         resultats.sort(key=lambda offre: offre.get("dateCreation", ""), reverse=True)
-        return resultats, possible_filters
+
+        uniques: list[dict] = []
+        seen: set[tuple[str, ...]] = set()
+        for offre in resultats:
+            fingerprint = _offer_dedupe_key(offre)
+            if fingerprint not in seen:
+                seen.add(fingerprint)
+                uniques.append(offre)
+
+        return uniques[:limit] if limit else uniques, possible_filters

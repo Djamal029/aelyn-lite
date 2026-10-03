@@ -136,6 +136,126 @@ class TestShowAllFollowUp:
         assert second.results is None
 
 
+class TestChatContextAfterLists:
+    def test_summarize_orange_mail_after_checking_unread_mail(self, agent):
+        orange = Mail(
+            uid="328",
+            sender="Orange",
+            sender_email="jobs@orange.example",
+            subject="Une nouvelle offre pour vous",
+            body="Orange propose plusieurs offres de stage et postes techniques.",
+        )
+
+        with patch(
+            "aelyn_conversation.agent.run_command",
+            return_value=(0, [orange], None),
+        ):
+            result = agent.handle_message("vérifie mes mails")
+
+        assert result.result_type == "mails"
+        with patch.object(
+            agent.llm, "text_stream", return_value=iter(["Six offres."])
+        ) as summarize:
+            summary = agent.handle_message("résume-moi le mail de Orange")
+
+        assert "Six offres." in summary.text
+        assert "Orange" in summarize.call_args.kwargs["user"]
+        assert "Une nouvelle offre pour vous" in summarize.call_args.kwargs["user"]
+
+    def test_describe_first_offer_from_latest_search(self, agent):
+        from aelyn_conversation.models import Intent
+
+        offers = [
+            {
+                "id": "risk-1",
+                "intitule": "Analyste Risques de Crédit Entreprises",
+                "description": "Analyse des risques de crédit des entreprises.",
+                "entreprise": {"nom": "Banque Exemple"},
+            },
+            {
+                "id": "risk-2",
+                "intitule": "Consultant Gestion des Risques IT",
+                "description": "Conseil en risques informatiques.",
+                "entreprise": {"nom": "Conseil Exemple"},
+            },
+        ]
+
+        with (
+            patch.object(
+                agent.intent_llm,
+                "structured",
+                return_value=Intent(
+                    commande="chercher_offres",
+                    mots_cles="data scientist",
+                    limit=10,
+                    reformulation="Je cherche 15 offres en gestion des risques bancaires.",
+                ),
+            ),
+            patch(
+                "aelyn_conversation.agent.career_run_command",
+                return_value=(0, offers),
+            ) as search,
+        ):
+            first = agent.handle_message("cherche 15 offres en gestion des risques bancaires")
+            detail = agent.handle_message("décris-moi la première offre")
+
+        assert search.call_args.kwargs["limit"] == 15
+        assert search.call_args.kwargs["mots_cles"] == "gestion des risques bancaires"
+        assert first.results == offers
+        assert "Analyste Risques de Crédit Entreprises" in detail.text
+        assert "Analyse des risques de crédit des entreprises." in detail.text
+        assert "Data Scientist" not in detail.text
+
+    def test_failed_offer_search_does_not_return_previous_turn(self, agent):
+        from aelyn.core.llm import LLMError
+        from aelyn_conversation.models import Intent
+
+        agent._last_said = "Ancienne réponse sans rapport."
+        with (
+            patch.object(
+                agent.intent_llm,
+                "structured",
+                return_value=Intent(
+                    commande="chercher_offres",
+                    mots_cles="data scientist",
+                    limit=10,
+                    reformulation="Je cherche des offres de data scientist.",
+                ),
+            ),
+            patch(
+                "aelyn_conversation.agent.career_run_command",
+                side_effect=LLMError("model runner has unexpectedly stopped"),
+            ),
+        ):
+            result = agent.handle_message("cherche des offres de data scientist")
+
+        assert result.results == []
+        assert "a échoué" in result.text
+        assert "Ancienne réponse" not in result.text
+
+    def test_failed_mail_summary_does_not_return_previous_turn(self, agent):
+        from aelyn.core.llm import LLMError
+
+        orange = Mail(
+            uid="328",
+            sender="Orange",
+            sender_email="jobs@orange.example",
+            subject="Une nouvelle offre pour vous",
+            body="Message test.",
+        )
+        agent._last_mails = [orange]
+        agent._last_said = "Ancienne réponse sans rapport."
+        with patch.object(
+            agent.llm,
+            "text_stream",
+            side_effect=LLMError("model runner has unexpectedly stopped"),
+        ):
+            result = agent.handle_message("résume-moi le mail de Orange")
+
+        assert "Je n'ai pas pu faire le résumé" in result.text
+        assert "Ancienne réponse" not in result.text
+
+
 class TestDraftPhrasingGap:
     """"prépare un mail pour X"/"réponds à ce mail" ne déclenchaient pas
     `_try_draft` (seuls "brouillon"/"rédige"/"draft" le faisaient), et

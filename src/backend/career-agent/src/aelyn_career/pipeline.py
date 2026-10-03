@@ -66,7 +66,11 @@ def find_best_matches(
 
     if ft.access_token is None:
         ft.connect()
-    offres, _ = ft.search_offers(contract_type=contract_type, keywords=keywords)
+    offres, _ = ft.search_offers(
+        contract_type=contract_type,
+        keywords=keywords,
+        limit=max_offers,
+    )
     if max_offers is not None:
         offres = offres[:max_offers]
 

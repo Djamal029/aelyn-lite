@@ -47,7 +47,10 @@ Règles :
   projet, pas une expérience chez "ENSAI"). Priorise les stages les plus
   récents et les plus longs (ex. Servier, Les Vieilles Charrues) avant
   les plus anciens. 2 à 4 expériences selon leur nombre dans le profil,
-  toutes si le profil en compte 4 ou moins.
+  toutes si le profil en compte 4 ou moins. Deux expériences chez le même
+  employeur mais à des périodes différentes sont des entrées distinctes :
+  ne les fusionne jamais, reprends la période exacte de chacune et conserve
+  toutes les expériences si elles sont au nombre de quatre ou moins.
   Le champ `entreprise` contient UNIQUEMENT le nom de l'entreprise, tel
   qu'il apparaît dans le profil (ex. "Servier France") : jamais précédé
   de "chez", "à" ou tout autre mot ("chez Servier France" est FAUX pour

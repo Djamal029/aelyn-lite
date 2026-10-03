@@ -142,6 +142,38 @@ class TestSearchOffersFor:
         assert kwargs["params"]["sort"] == 1
 
     @patch("aelyn_career.france_travail.offers.requests.get")
+    def test_explicit_limit_is_sent_as_range_header(self, mock_get):
+        response = make_response(206, {"resultats": [{"id": "1"}]})
+        response.headers = {"Content-Range": "offre 0-19/1"}
+        mock_get.return_value = response
+
+        ft = FTOffers(access_token="token")
+        offres, _ = ft.search_offers_for("Data Scientist", limit=20)
+
+        assert len(offres) == 1
+        assert mock_get.call_args.kwargs["headers"]["Range"] == "0-19"
+
+    @patch("aelyn_career.france_travail.offers.requests.get")
+    def test_paginates_when_limit_exceeds_api_page_size(self, mock_get):
+        first_page = [{"id": str(i)} for i in range(150)]
+        second_page = [{"id": str(i)} for i in range(150, 180)]
+        first = make_response(206, {"resultats": first_page})
+        first.headers = {"Content-Range": "offre 0-149/180"}
+        second = make_response(206, {"resultats": second_page})
+        second.headers = {"Content-Range": "offre 150-179/180"}
+        mock_get.side_effect = [first, second]
+
+        ft = FTOffers(access_token="token")
+        offres, _ = ft.search_offers_for("Data Scientist", limit=180)
+
+        assert len(offres) == 180
+        ranges = [
+            call.kwargs["headers"]["Range"]
+            for call in mock_get.call_args_list
+        ]
+        assert ranges == ["0-149", "150-179"]
+
+    @patch("aelyn_career.france_travail.offers.requests.get")
     def test_cdi_sends_type_contrat(self, mock_get):
         mock_get.return_value = make_response(200, {"resultats": []})
 
@@ -327,3 +359,44 @@ class TestSearchOffers:
             offres, _ = ft.search_offers()
 
         assert [o["id"] for o in offres] == ["2", "1"]
+
+    def test_deduplicates_same_visible_job_even_if_ids_differ(self):
+        ft = FTOffers(access_token="token")
+        ft.keywords = "Data Scientist"
+        recent = {
+            "id": "1",
+            "intitule": "Analyste risques bancaires",
+            "entreprise": {"nom": "Banque Exemple"},
+            "lieuTravail": {"libelle": "Paris"},
+            "typeContrat": "CDI",
+            "dateCreation": "2026-09-02",
+        }
+        duplicate = {**recent, "id": "2", "dateCreation": "2026-09-01"}
+        other_employer = {
+            **recent,
+            "id": "3",
+            "entreprise": {"nom": "Autre Banque"},
+        }
+
+        with patch.object(
+            ft,
+            "search_offers_for",
+            return_value=([recent, duplicate, other_employer], None),
+        ):
+            offres, _ = ft.search_offers()
+
+        assert [offre["id"] for offre in offres] == ["1", "3"]
+
+    def test_search_limit_is_applied_after_merging_keywords(self):
+        ft = FTOffers(access_token="token")
+        ft.keywords = "Data Scientist,Machine Learning"
+        results = [
+            {"id": "1", "intitule": "Offre 1"},
+            {"id": "2", "intitule": "Offre 2"},
+            {"id": "3", "intitule": "Offre 3"},
+        ]
+
+        with patch.object(ft, "search_offers_for", return_value=(results, None)):
+            offres, _ = ft.search_offers(limit=2)
+
+        assert [offre["id"] for offre in offres] == ["1", "2"]

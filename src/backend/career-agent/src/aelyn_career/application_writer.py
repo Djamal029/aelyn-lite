@@ -71,6 +71,20 @@ _NUM_CTX_TEXT = 8192
 _NUM_CTX_CV = 16384
 
 _NUMBER_RE = re.compile(r"\d[\d\s.,]*\d|\d")
+_MONTHS = {
+    "jan": 1, "january": 1, "janvier": 1,
+    "feb": 2, "february": 2, "fevrier": 2,
+    "mar": 3, "march": 3, "mars": 3,
+    "apr": 4, "april": 4, "avril": 4,
+    "may": 5, "mai": 5,
+    "jun": 6, "june": 6, "juin": 6,
+    "jul": 7, "july": 7, "juillet": 7,
+    "aug": 8, "august": 8, "aout": 8,
+    "sep": 9, "september": 9, "septembre": 9,
+    "oct": 10, "october": 10, "octobre": 10,
+    "nov": 11, "november": 11, "novembre": 11,
+    "dec": 12, "december": 12, "decembre": 12,
+}
 
 
 def _fold(text: str) -> str:
@@ -84,6 +98,27 @@ def _numbers_in(text: str) -> set[str]:
     """Chiffres présents dans `text`, espaces/virgules de milliers retirés
     (« 217 000 » et « 217000 » doivent compter comme le même nombre)."""
     return {re.sub(r"[\s.,]", "", n) for n in _NUMBER_RE.findall(text)} - {""}
+
+
+def _period_signature(period: str) -> tuple[tuple[int, ...], tuple[int, ...]]:
+    """Normalise une période en années/mois même si le LLM traduit les mois."""
+    words = re.findall(r"[a-z]+|\d{4}", _fold(period))
+    years = tuple(int(word) for word in words if re.fullmatch(r"\d{4}", word))
+    months = tuple(_MONTHS[word] for word in words if word in _MONTHS)
+    return years, months
+
+
+def _experience_identity(meta: dict) -> tuple[str, str, str]:
+    return (
+        _fold(meta.get("company", "")),
+        _fold(meta.get("period", "")),
+        _fold(meta.get("role", "")),
+    )
+
+
+def _experience_order(period: str) -> tuple[int, int]:
+    years, months = _period_signature(period)
+    return (years[0] if years else 0, months[0] if months else 0)
 
 
 def offer_text(offre: dict) -> str:
@@ -180,19 +215,49 @@ class ApplicationWriter:
                 return chunk["metadata"].get("description", "").strip()
         return None
 
-    def _real_experience_metadata(self, entreprise: str) -> dict | None:
+    def _real_experience_metadata(
+        self,
+        entreprise: str,
+        periode: str = "",
+        role: str = "",
+        used: set[tuple[str, str, str]] | None = None,
+    ) -> dict | None:
         """Métadonnées réelles du profil pour cette entreprise, ou `None`
         si aucune expérience du profil ne correspond. Comparaison par
         sous-chaîne dans les deux sens (accents/casse neutralisés) pour
         tolérer une légère reformulation du nom par le LLM, sans jamais
         faire confiance à sa paraphrase pour le contenu lui-même."""
         cible = _fold(entreprise)
-        for chunk in self.profil_manager.parse_profile():
-            if chunk["type"] != "experience":
-                continue
-            reelle = _fold(chunk["metadata"].get("company", ""))
-            if reelle and (cible in reelle or reelle in cible):
-                return chunk["metadata"]
+        candidates = [
+            chunk["metadata"]
+            for chunk in self.profil_manager.parse_profile()
+            if chunk["type"] == "experience"
+            and (reelle := _fold(chunk["metadata"].get("company", "")))
+            and (cible in reelle or reelle in cible)
+        ]
+        if not candidates:
+            return None
+
+        signature = _period_signature(periode)
+        if any(signature):
+            exact_period = [
+                meta for meta in candidates
+                if _period_signature(meta.get("period", "")) == signature
+            ]
+            if exact_period:
+                candidates = exact_period
+
+        role_key = _fold(role)
+        exact_role = [
+            meta for meta in candidates
+            if _fold(meta.get("role", "")) == role_key
+        ]
+        if role_key and exact_role:
+            candidates = exact_role
+
+        for meta in candidates:
+            if used is None or _experience_identity(meta) not in used:
+                return meta
         return None
 
     def _validate_experiences(
@@ -209,13 +274,20 @@ class ApplicationWriter:
         possiblement mal attribué. Une expérience qui ne correspond à
         AUCUNE entreprise du profil est exclue en entier (même principe
         que `_validate_projets` pour les titres de projet inventés)."""
-        validated = []
+        validated: list[CVExperience] = []
+        used: set[tuple[str, str, str]] = set()
         for exp in experiences:
-            meta = self._real_experience_metadata(exp.entreprise)
+            meta = self._real_experience_metadata(
+                exp.entreprise, exp.periode, exp.role, used
+            )
             if meta is None:
                 continue
+            used.add(_experience_identity(meta))
             highlights = meta.get("highlights", [])
-            texte_reel = f"{meta.get('description', '')} {' '.join(highlights)}"
+            result_values = [str(value) for value in meta.get("results", {}).values()]
+            texte_reel = " ".join(
+                [meta.get("description", ""), *highlights, *result_values]
+            )
             chiffres_reels = _numbers_in(texte_reel)
             puces = [p for p in exp.puces if _numbers_in(p) <= chiffres_reels]
             if not puces:
@@ -224,21 +296,55 @@ class ApplicationWriter:
                 # highlights RÉELS du profil (déjà du texte source, pas
                 # une paraphrase) plutôt que de supprimer l'expérience
                 # entière : l'utilisateur a bien fait ce stage.
-                puces = highlights[:3] or [meta.get("description", "")[:200]]
+                puces = self._fallback_experience_bullets(meta)
             validated.append(
                 CVExperience(
-                    role=exp.role,
+                    role=meta.get("role", exp.role),
                     # Nom réel du profil, jamais celui rendu par le LLM :
                     # un modèle plus petit peut retourner "Servier France
                     # chez Servier France" (le mot "chez" déjà inclus dans
                     # le champ), qui s'affiche ensuite en double une fois
                     # que le code ajoute son propre "chez {entreprise}".
                     entreprise=meta.get("company", exp.entreprise),
-                    periode=exp.periode,
+                    periode=meta.get("period", exp.periode),
                     puces=puces[:3],
                 )
             )
+
+        source_experiences = [
+            chunk["metadata"]
+            for chunk in self.profil_manager.parse_profile()
+            if chunk["type"] == "experience"
+        ]
+        if len(source_experiences) <= 4:
+            for meta in source_experiences:
+                identity = _experience_identity(meta)
+                if identity in used:
+                    continue
+                validated.append(
+                    CVExperience(
+                        role=meta.get("role", ""),
+                        entreprise=meta.get("company", ""),
+                        periode=meta.get("period", ""),
+                        puces=self._fallback_experience_bullets(meta),
+                    )
+                )
+                used.add(identity)
+
+        validated.sort(key=lambda item: _experience_order(item.periode), reverse=True)
         return validated
+
+    @staticmethod
+    def _fallback_experience_bullets(meta: dict) -> list[str]:
+        """Utilise les faits du profil pour préserver une expérience omise."""
+        highlights = list(meta.get("highlights", []))
+        results = [str(value) for value in meta.get("results", {}).values()]
+        description = meta.get("description", "").strip()
+        bullets = highlights[:2] if results else highlights[:3]
+        bullets.extend(results[: 3 - len(bullets)])
+        if not bullets and description:
+            bullets = [description[:200]]
+        return bullets[:3]
 
     def _validate_projets(self, projets: list[CVProjet]) -> list[CVProjet]:
         """Un titre de projet correct n'implique pas une description
