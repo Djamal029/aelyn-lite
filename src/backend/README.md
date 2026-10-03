@@ -32,16 +32,19 @@ tout fonctionne quand même, juste plus lentement sur les embeddings/la transcri
 demande tes identifiants/secrets, installe tout, tire les modèles Ollama) :
 
 ```bash
-# macOS / Linux / Git Bash (Windows)
-./src/backend/scripts/install.sh
-./src/backend/scripts/start.sh
+# macOS / Linux / Git Bash (Windows), depuis la racine du dépôt
+./install.sh
+./start.sh
 ```
 
 ```powershell
-# Windows (PowerShell natif)
-powershell -ExecutionPolicy Bypass -File src\backend\scripts\install.ps1
-powershell -ExecutionPolicy Bypass -File src\backend\scripts\start.ps1
+# Windows (PowerShell natif), depuis la racine du dépôt
+powershell -ExecutionPolicy Bypass -File install.ps1
+powershell -ExecutionPolicy Bypass -File start.ps1
 ```
+
+(`install.sh`/`start.sh`/`.ps1` à la racine ne sont que de fins redirecteurs vers
+`src/backend/scripts/` — pratique pour ne jamais avoir à naviguer dans `src/backend`.)
 
 Une fois lancé : `http://localhost:5173` (interface web) et
 `http://localhost:8001/docs` (API). Les sections ci-dessous détaillent ce
