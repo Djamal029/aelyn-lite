@@ -119,20 +119,20 @@ class TextEmbbeder:
         return util.cos_sim(chunks_embeddings, offre_embedding).squeeze(-1).numpy()
 
     @staticmethod
-    def _normalize(scores: np.ndarray) -> np.ndarray:
-        """BM25 n'est pas borné (peut dépasser 10-20 selon le corpus) alors
-        que le cosinus l'est toujours ([-1, 1]) : sans cette normalisation,
-        un seul chunk avec un score BM25 élevé (ex. un mot-clé générique
-        partagé par hasard) écrase le signal cosinus dans la somme
-        pondérée, quelle que soit sa pertinence sémantique réelle : c'est
-        ce qui faisait remonter des offres hors-sujet (DevOps, Social
-        Media Manager) devant des offres data science bien plus proches.
-        Min-max par appel : les scores BM25 ne sont comparables qu'entre
-        chunks d'un même appel (même requête), jamais dans l'absolu."""
-        lo, hi = scores.min(), scores.max()
-        if hi - lo < 1e-9:
-            return np.zeros_like(scores)
-        return (scores - lo) / (hi - lo)
+    def _squash_bm25(scores: np.ndarray, scale: float = 8.0) -> np.ndarray:
+        """Ramène BM25 (non borné, peut dépasser 10-20 selon le corpus) sur
+        une échelle FIXE [0, 1[ via `1 - exp(-score/scale)`, jamais un
+        min-max PAR APPEL (bug réel corrigé ici) : un min-max par offre
+        force TOUJOURS le meilleur chunk de CETTE offre à 1.0, même pour
+        une offre hors-sujet dont le meilleur chunk n'a qu'un chevauchement
+        lexical faible et accidentel — observé en direct, "hôtesse
+        bilingue" ressortait avec un score élevé sur une recherche
+        "intelligence artificielle" à cause de ça. Une échelle fixe laisse
+        un score lexical réellement faible rester faible, quelle que soit
+        la offre comparée. `scale` fixe le score BM25 qui vaut ~63% de 1.0,
+        à ajuster seulement si les scores BM25 observés changent d'ordre
+        de grandeur (ex. changement de corpus de chunks)."""
+        return 1.0 - np.exp(-np.clip(scores, 0, None) / scale)
 
     def final_score(self, chunks_text, offre_structuree):
         """Score final par chunk : BM25 (correspondance lexicale) et
@@ -140,12 +140,21 @@ class TextEmbbeder:
         `settings.weight_score_txt_match`/`settings.weight_score_cos`
         (lus ici, PAS en constante de module, pour qu'un changement via
         `PATCH /settings` s'applique à la toute PROCHAINE recherche, sans
-        redémarrage). Les deux sont normalisés sur [0, 1] avant
-        combinaison pour que ces poids soient réellement comparables."""
+        redémarrage).
+
+        Les deux signaux sont ramenés sur [0, 1] par une transformation À
+        ÉCHELLE FIXE (jamais relative à l'offre en cours) : le cosinus est
+        déjà borné ([-1, 1], donc un simple `(x+1)/2`), et BM25 passe par
+        `_squash_bm25`. Un min-max PAR OFFRE (comme avant ce correctif)
+        écraserait la différence entre une offre vraiment pertinente et
+        une offre hors-sujet qui n'a, par hasard, qu'un très faible
+        chevauchement lexical/sémantique : les deux remonteraient à des
+        scores comparables, uniquement parce que chacune a "un meilleur
+        chunk parmi les siens"."""
         if not isinstance(chunks_text, list):
             chunks_text = [chunks_text]
 
-        word_match = self._normalize(np.asarray(self.texts_scoring(chunks_text, offre_structuree)))
+        word_match = self._squash_bm25(np.asarray(self.texts_scoring(chunks_text, offre_structuree)))
 
         competences = offre_structuree["competences_requises"]
         if isinstance(competences, list):
@@ -153,6 +162,7 @@ class TextEmbbeder:
 
         chunks_embeddings = np.array([self.encode_cached(chunk["text"]) for chunk in chunks_text])
         offre_embedding = self.encode_cached(competences)
-        cos_sim = self._normalize(self.similarity(chunks_embeddings, offre_embedding))
+        cos_sim_raw = self.similarity(chunks_embeddings, offre_embedding)
+        cos_sim = (cos_sim_raw + 1.0) / 2.0
 
         return settings.weight_score_txt_match * word_match + settings.weight_score_cos * cos_sim
