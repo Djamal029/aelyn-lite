@@ -55,7 +55,7 @@ from aelyn_email.models import Mail
 from aelyn_media.agent import MediaController
 from aelyn_media.camera import show_camera
 
-from aelyn_conversation.fast_router import fast_intent
+from aelyn_conversation.fast_router import fast_intent, matches_trigger
 from aelyn_conversation.models import Intent, TurnResult
 from aelyn_conversation.prompts import (
     ACK_CANCEL,
@@ -164,6 +164,14 @@ _OFFERS_LIMIT_RE = re.compile(r"\b(\d{1,3})\s+(?:offres?|resultats?)\b", re.IGNO
 # accents du métier/mot-clé capturé (meilleure recherche France Travail).
 _OFFERS_KEYWORDS_RE = re.compile(r"\boffres?\s+(?:d['’]|de\s+|en\s+|chez\s+|pour\s+)(.+)$", re.IGNORECASE)
 _TRAILING_CONTRACT_RE = re.compile(r"\s+en\s+(cdi|cdd|stage|alternance)\s*$", re.IGNORECASE)
+# Un mot explicite par valeur de `Intent.contract_type` : sert de garde-fou
+# contre une hallucination du LLM sur ce champ (cf. son usage plus bas).
+_CONTRACT_TYPE_TRIGGERS = {
+    "cdi": re.compile(r"\bcdi\b", re.IGNORECASE),
+    "cdd": re.compile(r"\bcdd\b", re.IGNORECASE),
+    "stage": re.compile(r"\bstages?\b", re.IGNORECASE),
+    "alternance": re.compile(r"\balternances?\b|\bapprentissage\b", re.IGNORECASE),
+}
 TIME_RE = re.compile(r"\bquelle\s+heure\b|\bheure\s+est[\s-]?il\b", re.IGNORECASE)
 DATE_RE = re.compile(
     r"\bquel\s+jour\b|\bquelle\s+date\b|\bon\s+est\s+le\s+combien\b|\bquel\s+jour\s+on\s+est\b",
@@ -1054,6 +1062,18 @@ class ConversationalAgent:
                 self._say("Je n'ai pas pu comprendre cette phrase (LLM indisponible).")
                 return
 
+        # Garde-fou déterministe : constaté en direct, une phrase sans aucun
+        # rapport avec les mails ("développement limité de log(1-x)") peut
+        # être classifiée `verifier`/`triage`/`rapport` par le LLM. Ces trois
+        # commandes sont par construction reconnaissables par un mot-clé
+        # simple (cf. `fast_router._FAST_PATTERNS`) ; sans lui dans la
+        # phrase, on retombe sur `inconnu` (conversation normale) plutôt que
+        # de déclencher une vraie action sur une fausse classification.
+        if intent.commande in {"verifier", "triage", "rapport"} and not matches_trigger(
+            intent.commande, phrase
+        ):
+            intent = intent.model_copy(update={"commande": "inconnu"})
+
         if intent.commande == "chercher_offres":
             # Filet de sécurité déterministe : constaté en direct, même
             # avec une consigne explicite dans SYSTEM_INTENT ET une
@@ -1074,6 +1094,21 @@ class ConversationalAgent:
                 keywords = _TRAILING_CONTRACT_RE.sub("", match.group(1)).strip(" ?!.")
                 if keywords and keywords != intent.mots_cles:
                     intent = intent.model_copy(update={"mots_cles": keywords})
+
+            # Garde-fou déterministe : constaté en direct (traçage live),
+            # le LLM peut halluciner `contract_type` (et d'autres champs
+            # sans rapport, ex. `media_action`) même sur une phrase qui ne
+            # mentionne AUCUN type de contrat - "cherche 10 offres en
+            # intelligence artificielle" est ressorti avec
+            # contract_type="alternance", filtrant silencieusement TOUTES
+            # les offres non-alternance (0 résultat alors que 150 existent).
+            # Un type de contrat n'a qu'une lecture possible : un mot
+            # explicite dans LA PHRASE. Sans lui, jamais de confiance dans
+            # la valeur du LLM, quelle qu'elle soit.
+            if intent.contract_type is not None:
+                trigger = _CONTRACT_TYPE_TRIGGERS.get(intent.contract_type)
+                if trigger is None or not trigger.search(phrase):
+                    intent = intent.model_copy(update={"contract_type": None})
 
         if intent.commande in {"valider", "rejeter"} and intent.action_id is None:
             self._say(intent.reformulation or "Il me manque un numéro d'action.")

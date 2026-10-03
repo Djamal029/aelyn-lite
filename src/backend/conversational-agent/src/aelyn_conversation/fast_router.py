@@ -91,6 +91,23 @@ def _strip_accents(text: str) -> str:
     return "".join(c for c in decomposed if not unicodedata.combining(c))
 
 
+def matches_trigger(commande: str, phrase: str) -> bool:
+    """True si `phrase` contient le déclencheur textuel de `commande` dans
+    `_FAST_PATTERNS` (verifier/triage/rapport).
+
+    Sert de garde-fou côté LLM (`agent.py`) : constaté en direct, une phrase
+    sans AUCUN rapport avec les mails ("développement limité de log(1-x)")
+    peut être classifiée `verifier` par le modèle. Ces commandes sont par
+    définition reconnaissables par un mot-clé simple (c'est tout l'intérêt
+    du fast router) ; sans ce mot-clé dans la phrase, la classification du
+    LLM n'est pas fiable, même si ce chemin n'est passé par aucun des
+    patterns ci-dessus (cf. `_CONTRACT_TYPE_TRIGGERS` dans `agent.py` pour
+    le même principe appliqué à un champ plutôt qu'à la commande entière).
+    """
+    text = _strip_accents(phrase.strip().lower())
+    return any(pattern.search(text) for pattern, c in _FAST_PATTERNS if c == commande)
+
+
 def fast_intent(phrase: str) -> Intent | None:
     """Reconnaît localement les phrases sans ambiguïté, sans appeler le LLM."""
     text = _strip_accents(phrase.strip().lower())

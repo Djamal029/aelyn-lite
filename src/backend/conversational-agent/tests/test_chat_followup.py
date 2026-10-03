@@ -206,6 +206,80 @@ class TestChatContextAfterLists:
         assert "Analyse des risques de crédit des entreprises." in detail.text
         assert "Data Scientist" not in detail.text
 
+    def test_hallucinated_contract_type_is_discarded_without_trigger_word(self, agent):
+        """Constaté en direct (traçage live) : le LLM peut renvoyer
+        contract_type="alternance" (et d'autres champs sans rapport) pour
+        une phrase qui ne mentionne AUCUN type de contrat - filtrant
+        silencieusement TOUTES les offres non-alternance (0 résultat alors
+        que des dizaines existent). Un mot explicite dans la phrase est la
+        seule source de confiance pour ce champ."""
+        from aelyn_conversation.models import Intent
+
+        with (
+            patch.object(
+                agent.intent_llm,
+                "structured",
+                return_value=Intent(
+                    commande="chercher_offres",
+                    mots_cles="intelligence artificielle",
+                    limit=10,
+                    contract_type="alternance",
+                    reformulation="Je cherche 10 offres en intelligence artificielle.",
+                ),
+            ),
+            patch(
+                "aelyn_conversation.agent.career_run_command",
+                return_value=(0, []),
+            ) as search,
+        ):
+            agent.handle_message("cherche 10 offres en intelligence artificielle")
+
+        assert search.call_args.kwargs["contract_type"] is None
+
+    def test_contract_type_with_trigger_word_is_kept(self, agent):
+        from aelyn_conversation.models import Intent
+
+        with (
+            patch.object(
+                agent.intent_llm,
+                "structured",
+                return_value=Intent(
+                    commande="chercher_offres",
+                    mots_cles="data scientist",
+                    contract_type="alternance",
+                    reformulation="Je cherche une alternance en data scientist.",
+                ),
+            ),
+            patch(
+                "aelyn_conversation.agent.career_run_command",
+                return_value=(0, []),
+            ) as search,
+        ):
+            agent.handle_message("cherche une alternance en data scientist")
+
+        assert search.call_args.kwargs["contract_type"] == "alternance"
+
+    def test_hallucinated_verifier_command_falls_back_to_conversation(self, agent):
+        """Constaté en direct : "développement limité de log(1 - x)" (une
+        question de maths sans aucun rapport avec les mails) a été
+        classifiée commande="verifier" par le LLM, déclenchant "D'accord, je
+        vérifie tes mails." à la place d'une vraie réponse. Sans le mot-clé
+        "mail" dans la phrase, cette classification n'est pas fiable et doit
+        retomber sur "inconnu" (conversation normale)."""
+        from aelyn_conversation.models import Intent
+
+        with (
+            patch.object(
+                agent.intent_llm,
+                "structured",
+                return_value=Intent(commande="verifier", reformulation="D'accord, je vérifie tes mails."),
+            ),
+            patch.object(agent, "_converse") as mock_converse,
+        ):
+            agent.handle_message("développement limité de log(1 - x)")
+
+        mock_converse.assert_called_once()
+
     def test_failed_offer_search_does_not_return_previous_turn(self, agent):
         from aelyn.core.llm import LLMError
         from aelyn_conversation.models import Intent
