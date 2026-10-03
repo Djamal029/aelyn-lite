@@ -153,6 +153,17 @@ GREETING_REPLIES = [
 # capture le nombre explicitement demandé, en filet de sécurité derrière
 # l'extraction LLM (cf. `_dispatch_phrase`, peu fiable sur ce champ précis).
 _OFFERS_LIMIT_RE = re.compile(r"\b(\d{1,3})\s+(?:offres?|resultats?)\b", re.IGNORECASE)
+# "cherche des offres de/pour X" : constaté en direct, l'extraction LLM de
+# `mots_cles` échoue de façon reproductible selon le connecteur utilisé
+# SANS nombre dans la phrase ("...offres de data scientist" ->
+# mots_cles=None à CHAQUE appel ; "...offres en X"/"...offres chez X"
+# fonctionnent, et "...20 offres de X" aussi) — jamais corrigé en
+# retouchant SYSTEM_INTENT (même constat que `_OFFERS_LIMIT_RE` pour
+# `limit`), filet de sécurité déterministe à la place. Volontairement
+# appliqué sur la phrase ORIGINALE (pas `_normalize`) pour garder les
+# accents du métier/mot-clé capturé (meilleure recherche France Travail).
+_OFFERS_KEYWORDS_RE = re.compile(r"\boffres?\s+(?:d['’]|de\s+|en\s+|chez\s+|pour\s+)(.+)$", re.IGNORECASE)
+_TRAILING_CONTRACT_RE = re.compile(r"\s+en\s+(cdi|cdd|stage|alternance)\s*$", re.IGNORECASE)
 TIME_RE = re.compile(r"\bquelle\s+heure\b|\bheure\s+est[\s-]?il\b", re.IGNORECASE)
 DATE_RE = re.compile(
     r"\bquel\s+jour\b|\bquelle\s+date\b|\bon\s+est\s+le\s+combien\b|\bquel\s+jour\s+on\s+est\b",
@@ -1056,6 +1067,13 @@ class ConversationalAgent:
             match = _OFFERS_LIMIT_RE.search(_normalize(phrase))
             if match:
                 intent = intent.model_copy(update={"limit": int(match.group(1))})
+
+        if intent.commande == "chercher_offres" and not intent.mots_cles:
+            match = _OFFERS_KEYWORDS_RE.search(phrase)
+            if match:
+                keywords = _TRAILING_CONTRACT_RE.sub("", match.group(1)).strip(" ?!.")
+                if keywords:
+                    intent = intent.model_copy(update={"mots_cles": keywords})
 
         if intent.commande in {"valider", "rejeter"} and intent.action_id is None:
             self._say(intent.reformulation or "Il me manque un numéro d'action.")
