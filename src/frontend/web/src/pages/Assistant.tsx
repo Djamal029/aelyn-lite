@@ -7,6 +7,7 @@ import type { InterpretedCommand } from "../lib/commandInterpreter";
 import type { ChatMessage } from "../types";
 import { getChatHistory, type ApiChatEntry } from "../lib/api";
 import { isBackendLive } from "../lib/backendStatus";
+import { useChatMessages } from "../lib/chatStore";
 import { useSpeechSynthesis } from "../lib/useSpeechSynthesis";
 import styles from "./Assistant.module.css";
 
@@ -113,7 +114,16 @@ function resolvePendingExchange(prev: ChatMessage[], token: string, result: Inte
  * ever lost once the exchange is done. */
 export function Assistant() {
   const location = useLocation();
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  // Store au niveau du module (lib/chatStore.ts), pas un `useState` local :
+  // cette page démonte/remonte à chaque navigation ailleurs dans le SPA
+  // puis retour, et un simple état local perdait deux choses en route
+  // (bugs réels observés en direct) - un échange encore en vol au moment
+  // de quitter la page (ex. "oui" pour préparer un CV) dont la réponse
+  // arrivait sur un composant déjà démonté, et le tableau de résultats
+  // (resultType/results) de tours déjà affichés, écrasé par la version en
+  // PROSE SEULE de GET /chat/history à chaque remontée (ce endpoint ne
+  // porte jamais ces deux champs). Voir le fichier du store pour le détail.
+  const [messages, setMessages] = useChatMessages();
   const [historySource, setHistorySource] = useState<"offline" | "live">("offline");
   const [voiceOpen, setVoiceOpen] = useState(Boolean((location.state as { openVoice?: boolean } | null)?.openVoice));
   const [speakReplies, setSpeakReplies] = useState(false);
@@ -127,6 +137,15 @@ export function Assistant() {
   }, [location.state]);
 
   useEffect(() => {
+    // Ne charge l'historique QUE si on n'a encore rien en mémoire (première
+    // visite de l'app) : sinon, revenir sur Assistant après être allé
+    // voir une autre page écraserait la conversation en cours (avec ses
+    // vrais tableaux de résultats) par sa version texte brut rechargée
+    // depuis GET /chat/history.
+    if (messages.length > 0) {
+      setHistorySource("live");
+      return;
+    }
     let cancelled = false;
     (async () => {
       const reachable = await isBackendLive();
@@ -143,6 +162,7 @@ export function Assistant() {
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleTextSubmitted = (prompt: string, token: string) => {

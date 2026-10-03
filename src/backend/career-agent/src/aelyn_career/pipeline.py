@@ -105,11 +105,24 @@ def find_best_matches(
                 keywords, offre.get("intitule", ""), offre_structuree["competences_requises"]
             )
 
+        # Trois facteurs <= 1 multipliés entre eux (score texte/cosinus,
+        # adequacy, relevance) compriment mécaniquement le résultat final
+        # vers le bas, même pour une excellente offre : chacun est
+        # délibérément conservateur pris seul (cf. `_squash_cosine`/
+        # `_squash_bm25`, resserrés exprès contre les faux positifs), donc
+        # leur produit l'est trois fois plus. Une offre réellement
+        # pertinente affichait "33%" - correct dans l'ordre (toujours la
+        # mieux classée), mais lu comme un match médiocre par un humain,
+        # jamais l'intention. Racine carrée : transformation MONOTONE
+        # (ne change aucun classement, juste l'échelle affichée) qui
+        # réétire la moitié basse de l'intervalle [0, 1] sans toucher à la
+        # discrimination déjà obtenue contre les faux positifs.
+        final_score = float(np.mean(scores[top_indices])) * adequacy * relevance
         resultats.append(
             {
                 **offre,
                 "structured": offre_structuree,
-                "score": float(np.mean(scores[top_indices])) * adequacy * relevance,
+                "score": final_score**0.5,
                 "niveau_adequacy": adequacy,
                 "query_relevance": relevance,
                 "raisons": raisons,

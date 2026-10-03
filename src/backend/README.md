@@ -278,11 +278,55 @@ uv run aelyn chat                  # au clavier, phrase libre
 uv run aelyn chat --voix           # au micro, réponses vocales (mot d'activation « Éline »)
 ```
 
-Comprend nativement, sans commande dédiée à mémoriser : vérifier/trier les mails, résumer
-ou rédiger un brouillon pour un mail précis (« résume le mail de X »), chercher des offres
-d'emploi/stage (« cherche des offres data scientist chez EDF »), contrôler la TV
-(« lance Netflix », « monte le son », « cherche Stranger Things sur YouTube »), ou juste
-discuter librement (tout le reste part en conversation, pas en erreur).
+Pas de commandes figées à mémoriser : une phrase libre suffit. Voici tout ce qu'AELYN
+comprend nativement aujourd'hui.
+
+**Mail**
+
+| Dis... | AELYN... |
+|---|---|
+| « vérifie mes mails » | liste les non-lus (IMAP, sans LLM) |
+| « trie mes mails » | propose une action (répondre/archiver/ignorer/lire plus tard/signaler) par mail, rien n'est exécuté |
+| « résume-moi le mail de X » | résumé du mail le plus récent correspondant à X (nom, objet...) |
+| « rédige un brouillon pour le mail de X » / « réponds à ce mail » | brouillon de réponse, proposé avant tout envoi |
+| « valide l'action #3 » / « rejette l'action #3 » | exécute/rejette une proposition de triage déjà faite |
+| « fais-moi un rapport » | résumé des actions des dernières 24h (journal) |
+
+**Carrière**
+
+| Dis... | AELYN... |
+|---|---|
+| « cherche des offres data scientist chez EDF » | recherche France Travail, classée par pertinence avec ton profil |
+| « cherche 20 offres en intelligence artificielle » | comme ci-dessus, avec un nombre maximum de résultats explicite |
+| « décris-moi la première offre » / « décris l'offre de X » | description complète d'une offre déjà listée |
+| « prépare mon CV pour cette offre » | brouillon de CV ciblé (confirmation « oui »/« non » avant génération) |
+| « rédige une lettre de motivation pour cette offre » | idem pour une lettre de motivation |
+| « affine cette lettre, insiste sur X » | reprend la dernière lettre générée avec une consigne |
+
+**Média (Freebox Pop / Android TV)**
+
+| Dis... | AELYN... |
+|---|---|
+| « lance Netflix » / « lance YouTube » | ouvre l'appli sur la TV |
+| « cherche Stranger Things sur Netflix/YouTube » | lance une recherche dans l'appli |
+| « monte/baisse le son », « coupe le son » | ajuste le volume |
+| « pause », « suivant », « précédent » | contrôle de lecture |
+| « haut »/« bas »/« gauche »/« droite », « sélectionne », « retour », « accueil » | navigation D-pad |
+| « allume/éteins la TV » | marche/veille (HDMI-CEC, support variable selon le téléviseur) |
+
+**Système / divers**
+
+| Dis... | AELYN... |
+|---|---|
+| « quelle heure est-il ? » | heure système, sans LLM |
+| « quel jour on est ? » | date système, sans LLM |
+| « affiche les offres »/« lis le premier » | relit la dernière liste (offres ou mails) déjà montrée ce tour-ci |
+| « reformule ça » | redit la dernière réponse d'AELYN autrement |
+| bonjour/salut, ou n'importe quoi d'autre | conversation libre (le LLM répond, aucune commande n'est exécutée) |
+
+`valider`/`rejeter` ne s'exécutent que depuis la CLI interactive (confirmation au clavier) ;
+depuis le chat web/API, AELYN l'explique plutôt que de bloquer sur une confirmation qui ne
+peut pas venir d'un appel HTTP.
 
 ### Scripts de test manuels (appels réels, pas de mock)
 
