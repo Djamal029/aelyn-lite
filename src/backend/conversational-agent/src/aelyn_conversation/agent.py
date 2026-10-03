@@ -1371,14 +1371,9 @@ class ConversationalAgent:
             return ""
         self._pending_action = {"kind": "prepare_cv", "offre": offre}
         question = f"Veux-tu que je prépare ton CV pour {offre.get('intitule') or 'cette offre'} ?"
-        # Lien RÉEL de l'annonce (France Travail), jamais inventé : AELYN
-        # rédige du contenu (CV/lettre), mais ne postule jamais à la place
-        # de l'utilisateur - sans ce lien, rien n'indiquait où aller une
-        # fois le CV/la lettre prêts (question réelle d'un utilisateur :
-        # "comment je postule une fois tout OK ?").
-        url = (offre.get("origineOffre") or {}).get("urlOrigine")
-        if url:
-            question += f"\n\nPour postuler une fois prêt(e) : {url}"
+        infos = _application_info(offre)
+        if infos:
+            question += f"\n\n{infos}"
         _print_agent_bubble(question)
         return question
 
@@ -1954,6 +1949,51 @@ def _offer_line(offre: dict) -> str:
     lieu = offre.get("lieuTravail", {}).get("libelle", "?")
     contrat = offre.get("typeContrat", "?")
     return f"- {offre.get('intitule')} | {entreprise} | {lieu} | {contrat}"
+
+
+def _application_info(offre: dict) -> str:
+    """Tout ce qu'il faut pour POSTULER réellement à `offre`, jamais
+    inventé : AELYN rédige du contenu (CV/lettre), mais ne postule jamais
+    à la place de l'utilisateur - sans ce bloc, rien n'indiquait où/comment
+    aller une fois le CV/la lettre prêts (question réelle d'un
+    utilisateur : "comment je postule une fois tout OK ?").
+
+    France Travail n'héberge quasi jamais la candidature elle-même : le
+    partenaire listé dans `origineOffre.partenaires` (ex. PMEJOB,
+    DirectEmploi, Xtramile...) est en général la VRAIE destination -
+    `urlOrigine` (la fiche France Travail) redirige déjà vers lui au clic
+    sur "postuler" de leur propre site. Les deux sont donnés : le
+    partenaire en premier (la destination réelle), la fiche France
+    Travail en repli/complément. `contact` (email/téléphone), quand
+    France Travail le fournit, est lui aussi affiché tel quel."""
+    origine = offre.get("origineOffre") or {}
+    lignes: list[str] = []
+
+    partenaires = origine.get("partenaires") or []
+    if partenaires:
+        nom = partenaires[0].get("nom")
+        url = partenaires[0].get("url")
+        if url:
+            lignes.append(f"Candidature en ligne{f' ({nom})' if nom else ''} : {url}")
+
+    url_origine = origine.get("urlOrigine")
+    if url_origine:
+        lignes.append(f"Fiche France Travail : {url_origine}")
+
+    contact = offre.get("contact") or {}
+    coordonnees = [
+        contact.get(key)
+        for key in ("nom", "courriel", "telephone", "coordonnees1", "coordonnees2", "coordonnees3")
+        if contact.get(key)
+    ]
+    if coordonnees:
+        lignes.append("Contact : " + " · ".join(coordonnees))
+    if contact.get("commentaire"):
+        lignes.append(contact["commentaire"])
+
+    if not lignes:
+        return ""
+    return "Pour postuler :\n" + "\n".join(f"- {ligne}" for ligne in lignes)
 
 
 def _group_result_lines(output: str) -> list[str]:

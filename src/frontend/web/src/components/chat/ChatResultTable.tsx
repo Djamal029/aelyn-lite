@@ -30,7 +30,7 @@ function offerContract(o: ApiOfferResult): string {
   return o.contrat ?? o.typeContrat ?? "N/A";
 }
 function offerApplyUrl(o: ApiOfferResult): string | undefined {
-  return o.origineOffre?.urlOrigine;
+  return o.origineOffre?.partenaires?.[0]?.url ?? o.origineOffre?.urlOrigine;
 }
 
 /** Renders a real chat-reply list (offer search / mail check) as an

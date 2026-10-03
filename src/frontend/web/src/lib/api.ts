@@ -221,10 +221,12 @@ export interface ApiOfferResult {
   dateCreation?: string;
   date_creation?: string;
   score?: number;
-  /** Lien RÉEL pour postuler (France Travail), jamais un lien inventé
-   * par le LLM, toujours celui de l'annonce source. Absent si France
-   * Travail ne l'a pas fourni. */
-  origineOffre?: { urlOrigine?: string };
+  /** Jamais un lien inventé, toujours celui de l'annonce source. France
+   * Travail héberge rarement la candidature elle-même : `partenaires[0].
+   * url` (ex. PMEJOB, DirectEmploi...) est en général la VRAIE
+   * destination, `urlOrigine` (la fiche France Travail) n'étant qu'un
+   * repli qui redirige de toute façon vers ce même partenaire. */
+  origineOffre?: { urlOrigine?: string; partenaires?: { nom?: string; url?: string }[] };
 }
 
 export function getCareerOffers(params: { motsCles?: string; contractType?: ContractType } = {}): Promise<ApiCareerOffer[]> {
