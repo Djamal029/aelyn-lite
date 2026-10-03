@@ -53,3 +53,4 @@ src/frontend/web     <- interface web (React + Vite + TypeScript)
 ## Licence
 
 Projet personnel, partagé à titre d'exemple/d'apprentissage.
+Merci de t'abonner et de mettre un star si le projet te plait.
