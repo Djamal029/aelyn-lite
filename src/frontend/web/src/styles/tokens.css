@@ -118,3 +118,30 @@
   --glow-blue-md: 0 0 10px rgba(127, 161, 227, 0.5), 0 0 3px rgba(127, 161, 227, 0.65);
   --glow-green-md: 0 0 10px rgba(107, 191, 148, 0.5), 0 0 3px rgba(107, 191, 148, 0.65);
 }
+
+/* Compact tablet / small-desktop tuning: the app is intentionally a
+ * control panel rather than a marketing dashboard, so once the viewport
+ * gets close to a laptop/tablet range (~1100px wide), we reduce the
+ * density slightly without changing the phone behavior. This keeps cards
+ * and labels tighter while preserving the off-canvas mobile pattern. */
+@media (max-width: 1100px) and (min-width: 769px) {
+  :root {
+    --fs-xs: 10px;
+    --fs-sm: 11px;
+    --fs-base: 12px;
+    --fs-md: 13px;
+    --fs-lg: 15px;
+    --fs-xl: 18px;
+
+    --sp-1: 3px;
+    --sp-2: 6px;
+    --sp-3: 10px;
+    --sp-4: 14px;
+    --sp-5: 18px;
+    --sp-6: 22px;
+    --sp-8: 28px;
+
+    --sidebar-width: 184px;
+    --topbar-height: 52px;
+  }
+}

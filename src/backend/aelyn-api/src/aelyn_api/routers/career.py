@@ -45,6 +45,7 @@ class OfferOut(BaseModel):
 def search_offers(
     mots_cles: str | None = None,
     contract_type: str | None = None,
+    limit: int | None = None,
     offers_agent: FTOffers = Depends(get_offers_agent),
 ) -> list[OfferOut]:
     if offers_agent.access_token is None:
@@ -59,7 +60,18 @@ def search_offers(
         # GET /career renvoie un vrai `score` (BM25/cosinus contre le
         # profil) au lieu de la liste brute non classée, jamais scorée
         # auparavant malgré "Score" déjà affiché côté frontend.
-        offres = find_best_matches(contract_type=contract_type, keywords=mots_cles, ft=offers_agent)
+        #
+        # `limit` (query param, ex. ?limit=30) suit `top_n`/`max_offers` :
+        # sans aligner `max_offers`, demander plus que les 20 offres
+        # structurées par défaut ne changeait rien au résultat.
+        top_n = limit or 10
+        offres = find_best_matches(
+            contract_type=contract_type,
+            keywords=mots_cles,
+            ft=offers_agent,
+            top_n=top_n,
+            max_offers=max(20, top_n),
+        )
     except Exception as exc:
         raise HTTPException(502, f"Recherche France Travail impossible : {exc}") from exc
 

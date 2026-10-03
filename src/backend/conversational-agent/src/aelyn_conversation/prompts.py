@@ -30,6 +30,18 @@ Commandes disponibles :
       `contract_type` VIDE (aucun type de contrat mentionné), seul
       `mots_cles` = "EDF, Roche" est rempli. "cherche des stages" ->
       `contract_type` = "stage".
+    - `limit` : UNIQUEMENT si la phrase précise EXPLICITEMENT un nombre
+      d'offres. Sinon laisse VIDE (le système garde son propre défaut) ;
+      ne devine JAMAIS un nombre non dit. S'il y a moins d'offres
+      disponibles que ce nombre, le système affiche simplement ce qu'il
+      trouve, ce n'est pas une erreur.
+      Exemples (le nombre et le métier sont DEUX champs séparés, jamais
+      mélangés dans `mots_cles`) :
+      "cherche 20 offres de data scientist" -> `limit`=20, `mots_cles`=
+      "data scientist". "montre-moi 30 offres en intelligence artificielle"
+      -> `limit`=30, `mots_cles`="intelligence artificielle". "je veux 15
+      résultats pour EDF" -> `limit`=15, `mots_cles`="EDF". "cherche des
+      offres de data scientist" (aucun nombre) -> `limit` VIDE.
 - media                : contrôle la TV (Freebox Pop / Android TV, aucun risque)
     - `media_action` (obligatoire) : une seule valeur parmi netflix, youtube,
       tv_power, home, back, up, down, left, right, select, play_pause, next,

@@ -12,12 +12,16 @@ from aelyn_career.france_travail.offers import FTOffers
 from aelyn_career.pipeline import find_best_matches
 
 
+DEFAULT_OFFERS_LIMIT = 10
+
+
 def run_command(
     command: str,
     *,
     offers_agent: FTOffers | None = None,
     mots_cles: str | None = None,
     contract_type: str | None = None,
+    limit: int | None = None,
     **_: object,
 ) -> tuple[int, list[dict]]:
     if command == "chercher_offres":
@@ -31,7 +35,23 @@ def run_command(
         # embeddings BM25/cosinus, cache par hash) — resté orphelin,
         # jamais appelé nulle part avant ce correctif. Chaque offre
         # renvoyée porte désormais un vrai `score`, pas `None`/absent.
-        offres = find_best_matches(contract_type=contract_type, keywords=mots_cles, ft=agent)
+        #
+        # `top_n`/`max_offers` suivent `limit` (demandé explicitement par
+        # l'utilisateur, ex. "cherche 20 offres") plutôt qu'un défaut figé
+        # à 10 : sans `max_offers` aligné, demander 30 offres ne renvoyait
+        # jamais plus que les 20 premières structurées par défaut, même si
+        # France Travail en avait bien plus. Si moins d'offres existent
+        # que `limit`, `find_best_matches` renvoie simplement ce qu'il
+        # trouve (`resultats[:top_n]` sur une liste plus courte), jamais
+        # une erreur.
+        top_n = limit or DEFAULT_OFFERS_LIMIT
+        offres = find_best_matches(
+            contract_type=contract_type,
+            keywords=mots_cles,
+            ft=agent,
+            top_n=top_n,
+            max_offers=max(20, top_n),
+        )
         if not offres:
             print("Aucune offre trouvée.")
             return 0, []

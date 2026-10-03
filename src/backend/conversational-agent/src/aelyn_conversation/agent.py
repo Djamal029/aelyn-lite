@@ -149,6 +149,10 @@ GREETING_REPLIES = [
     "Salut ! Je t'écoute.",
     "Bonjour, je suis là. Tu veux que je regarde tes mails, des offres, autre chose ?",
 ]
+# "cherche 20 offres"/"montre-moi 30 offres"/"je veux 15 résultats" :
+# capture le nombre explicitement demandé, en filet de sécurité derrière
+# l'extraction LLM (cf. `_dispatch_phrase`, peu fiable sur ce champ précis).
+_OFFERS_LIMIT_RE = re.compile(r"\b(\d{1,3})\s+(?:offres?|resultats?)\b", re.IGNORECASE)
 TIME_RE = re.compile(r"\bquelle\s+heure\b|\bheure\s+est[\s-]?il\b", re.IGNORECASE)
 DATE_RE = re.compile(
     r"\bquel\s+jour\b|\bquelle\s+date\b|\bon\s+est\s+le\s+combien\b|\bquel\s+jour\s+on\s+est\b",
@@ -1039,6 +1043,20 @@ class ConversationalAgent:
                 self._say("Je n'ai pas pu comprendre cette phrase (LLM indisponible).")
                 return
 
+        if intent.commande == "chercher_offres" and intent.limit is None:
+            # Filet de sécurité déterministe : constaté en direct, même
+            # avec une consigne explicite dans SYSTEM_INTENT ET une
+            # description portée par le champ lui-même, mistral:7b laissait
+            # `limit` vide pour "cherche 20 offres de data scientist" —
+            # Ollama n'utilise la description d'un champ JSON Schema que
+            # pour la VALIDATION de structure, jamais comme texte lu par le
+            # modèle. Un nombre explicite dans une phrase de recherche
+            # d'offres n'a qu'une lecture possible (combien de résultats),
+            # inutile de laisser ça à l'appréciation (variable) du LLM.
+            match = _OFFERS_LIMIT_RE.search(_normalize(phrase))
+            if match:
+                intent = intent.model_copy(update={"limit": int(match.group(1))})
+
         if intent.commande in {"valider", "rejeter"} and intent.action_id is None:
             self._say(intent.reformulation or "Il me manque un numéro d'action.")
             return
@@ -1774,6 +1792,7 @@ class ConversationalAgent:
                     offers_agent=self.offers_agent,
                     mots_cles=intent.mots_cles,
                     contract_type=intent.contract_type,
+                    limit=intent.limit,
                 )
             else:
                 kwargs = dict(

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class Intent(BaseModel):
@@ -22,7 +22,19 @@ class Intent(BaseModel):
         "inconnu",
     ]
     action_id: int | None = None
-    limit: int | None = None
+    # Description au niveau du schéma (pas juste dans SYSTEM_INTENT) : un
+    # modèle structuré suit souvent plus fidèlement une description portée
+    # par le CHAMP lui-même qu'une explication seulement dans le prompt
+    # système — constaté en direct, "cherche 20 offres de data scientist"
+    # laissait `limit` vide tant que seul SYSTEM_INTENT l'expliquait.
+    limit: int | None = Field(
+        default=None,
+        description=(
+            "Nombre maximum de résultats, UNIQUEMENT si explicitement dit "
+            "dans la phrase (ex. 'cherche 20 offres' -> 20, 'vérifie mes 5 "
+            "derniers mails' -> 5) ; sinon null, jamais deviné."
+        ),
+    )
     hours: int | None = None
     mots_cles: str | None = None
     contract_type: Literal["cdi", "cdd", "alternance", "stage"] | None = None
