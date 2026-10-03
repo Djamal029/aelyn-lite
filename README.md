@@ -9,24 +9,38 @@ plus la reconnaissance faciale/anti-spoofing) reste privée.
 
 ## Installation rapide
 
+Ouvre un terminal **à la racine du dépôt** (le dossier qui contient ce README), juste après
+avoir cloné le projet.
+
+**macOS / Linux / Git Bash (Windows)** :
 ```bash
-# macOS / Linux / Git Bash (Windows)
+chmod +x install.sh start.sh   # une seule fois, rend les scripts exécutables
 ./install.sh
 ./start.sh
 ```
+Sur Windows, utilise **Git Bash** (installé avec Git) pour cette méthode, pas l'invite de
+commandes (`cmd.exe`) ni PowerShell. Si `./install.sh` répond `Permission denied`, le
+`chmod +x` ci-dessus n'a pas été exécuté (ou pas pris en compte) : relance-le, ou lance le
+script autrement avec `bash install.sh` (fonctionne même sans le bit exécutable).
 
+**Windows (PowerShell natif)** :
 ```powershell
-# Windows (PowerShell natif)
 powershell -ExecutionPolicy Bypass -File install.ps1
 powershell -ExecutionPolicy Bypass -File start.ps1
 ```
+Le `-ExecutionPolicy Bypass` est nécessaire car PowerShell bloque par défaut l'exécution de
+scripts `.ps1` qui ne sont pas signés numériquement ; ce flag l'autorise **pour cette seule
+commande**, sans rien changer de façon permanente sur ta machine (pas besoin de
+`Set-ExecutionPolicy`).
 
 Le script d'installation détecte automatiquement si tu as un GPU NVIDIA compatible (sinon
 installe une version CPU, aucune action de ta part), vérifie les prérequis, te demande tes
 identifiants/secrets, installe tout, et tire les modèles Ollama nécessaires.
 
 Une fois lancé : `http://localhost:5173` (interface web) et `http://localhost:8001/docs`
-(API).
+(API). Les deux scripts (`install`, `start`) peuvent être relancés sans risque : `install.sh`/
+`.ps1` ne réécrase pas ce qui est déjà configuré, et `start.sh`/`.ps1` affiche les deux liens
+ci-dessus à chaque lancement.
 
 ## Prérequis
 
