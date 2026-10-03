@@ -1754,6 +1754,7 @@ class ConversationalAgent:
         buffer = io.StringIO()
         mails: list[Mail] = []
         offres: list[dict] = []
+        triage_info: list[dict] | None = None
         with contextlib.redirect_stdout(buffer):
             if intent.commande in MEDIA_COMMANDS:
                 if intent.media_action is None:
@@ -1804,13 +1805,20 @@ class ConversationalAgent:
                     # casseraient `_group_result_lines` ci-dessous.
                     plain=True,
                 )
-                code, mails = run_command(intent.commande, **kwargs)
+                code, mails, triage_info = run_command(intent.commande, **kwargs)
         output = buffer.getvalue()
         if output.strip():
             _print_agent_bubble(output.rstrip("\n"))
 
         if intent.commande in {"verifier", "triage"}:
-            mail_dicts = [_mail_to_dict(m) for m in mails]
+            # `triage_info` (uid -> action_proposee/urgence/resume/action_id)
+            # vient de `run_command` UNIQUEMENT pour `triage` : sans ce
+            # merge, le tableau "mails" rendu côté frontend était identique
+            # pour verifier ET triage, l'action proposée par le LLM
+            # n'existant alors que dans le texte imprimé, jamais dans les
+            # données structurées (`TurnResult.results`).
+            triage_by_uid = {t["uid"]: t for t in triage_info} if triage_info else {}
+            mail_dicts = [_mail_to_dict(m, triage_by_uid.get(m.uid)) for m in mails]
             self._last_results = _group_result_lines(output)
             self._last_mails = mails
             self._last_list_type = "mails"
@@ -1849,15 +1857,20 @@ class ConversationalAgent:
             self._finish_say(full_text, spoken=short_ack)
 
 
-def _mail_to_dict(mail: Mail) -> dict:
+def _mail_to_dict(mail: Mail, triage: dict | None = None) -> dict:
     """Même forme que `MailOut` côté aelyn-api (cf.
     aelyn-api/src/aelyn_api/routers/email.py), pour qu'un résultat
     "mails" renvoyé par `handle_message()` se comporte, côté frontend,
     comme celui de `GET /email` : un seul contrat JSON pour "une liste
-    de mails", peu importe par quelle route elle est arrivée."""
+    de mails", peu importe par quelle route elle est arrivée.
+
+    `triage` (uniquement pour une commande `triage`, cf. appelant) ajoute
+    `action_proposee`/`urgence`/`resume`/`action_id` : ce que le LLM a
+    proposé pour CE mail, pour que le frontend puisse l'afficher dans le
+    tableau au lieu de ne l'avoir que dans le texte libre de la réponse."""
     lignes = [line.strip() for line in mail.body.splitlines() if line.strip()]
     preview = " ".join(lignes)[:160]
-    return {
+    result = {
         "uid": mail.uid,
         "sender": mail.sender,
         "sender_email": mail.sender_email,
@@ -1866,6 +1879,12 @@ def _mail_to_dict(mail: Mail) -> dict:
         "preview": preview,
         "has_attachments": mail.has_attachments,
     }
+    if triage is not None:
+        result["action_proposee"] = triage["action_proposee"]
+        result["urgence"] = triage["urgence"]
+        result["resume"] = triage["resume"]
+        result["action_id"] = triage["action_id"]
+    return result
 
 
 def _offer_line(offre: dict) -> str:

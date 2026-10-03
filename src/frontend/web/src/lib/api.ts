@@ -132,6 +132,13 @@ export interface ApiEmailListItem {
   date: string | null;
   preview: string;
   has_attachments: boolean;
+  /** Présents uniquement pour un résultat de "triage" (pas "verifier") :
+   * ce que le LLM propose pour ce mail, cf.
+   * aelyn_conversation.agent._mail_to_dict. */
+  action_proposee?: string;
+  urgence?: number;
+  resume?: string;
+  action_id?: number;
 }
 
 export interface ApiEmailSummary {

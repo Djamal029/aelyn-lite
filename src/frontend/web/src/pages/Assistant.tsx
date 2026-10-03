@@ -5,7 +5,6 @@ import { CommandBar } from "../components/commandbar/CommandBar";
 import { VoicePanel } from "../components/voice/VoicePanel";
 import type { InterpretedCommand } from "../lib/commandInterpreter";
 import type { ChatMessage } from "../types";
-import { chatHistory as initialHistory } from "../mocks";
 import { getChatHistory, type ApiChatEntry } from "../lib/api";
 import { isBackendLive } from "../lib/backendStatus";
 import { useSpeechSynthesis } from "../lib/useSpeechSynthesis";
@@ -98,23 +97,24 @@ function resolvePendingExchange(prev: ChatMessage[], token: string, result: Inte
   );
 }
 
-/** Assistant / Chat: the conversational surface of the console. History
- * loads for real from aelyn-api's `GET /chat/history` (the same SQLite
- * store the CLI chat writes to) when the backend is reachable, falling
- * back to the realistic mock transcript (mocks/chat.ts) otherwise (see
- * `historySource` below, shown to the user rather than silently
- * guessed). Each AELYN turn shows the routed intent before its result
- * for commands (lib/commandResolver.ts executes verifier/
- * chercher_offres/media for real against aelyn-api when it's up); free
- * conversation goes through the real `POST /chat/message` and has no
- * "COMPRIS" line, matching the backend's own "no intent routing yet"
- * behavior honestly. Voice mode (VoicePanel) feeds the exact same
- * history so nothing said out loud is ever lost once the exchange is
- * done. */
+/** Assistant / Chat: the conversational surface of the console. Starts
+ * genuinely empty (no fake pre-filled conversation) and loads for real
+ * from aelyn-api's `GET /chat/history` (the same SQLite store the CLI
+ * chat writes to) once the backend answers (see `historySource` below,
+ * shown to the user rather than silently guessed). If the backend is
+ * unreachable, the thread simply stays empty rather than showing a
+ * simulated demo transcript as if it were real history. Each AELYN turn
+ * shows the routed intent before its result for commands
+ * (lib/commandResolver.ts executes verifier/chercher_offres/media for
+ * real against aelyn-api when it's up); free conversation goes through
+ * the real `POST /chat/message` and has no "COMPRIS" line, matching the
+ * backend's own "no intent routing yet" behavior honestly. Voice mode
+ * (VoicePanel) feeds the exact same history so nothing said out loud is
+ * ever lost once the exchange is done. */
 export function Assistant() {
   const location = useLocation();
-  const [messages, setMessages] = useState<ChatMessage[]>(initialHistory);
-  const [historySource, setHistorySource] = useState<"mock" | "live">("mock");
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [historySource, setHistorySource] = useState<"offline" | "live">("offline");
   const [voiceOpen, setVoiceOpen] = useState(Boolean((location.state as { openVoice?: boolean } | null)?.openVoice));
   const [speakReplies, setSpeakReplies] = useState(false);
   const [ttsError, setTtsError] = useState<string | null>(null);
@@ -137,7 +137,7 @@ export function Assistant() {
         setMessages(history.map(fromApiEntry));
         setHistorySource("live");
       } catch {
-        // stay on the mock transcript
+        // backend reachable but history fetch failed: stay empty
       }
     })();
     return () => {
@@ -185,7 +185,7 @@ export function Assistant() {
           <span className={styles.subtitle}>
             {historySource === "live"
               ? "historique réel (aelyn-api · SQLite, partagé avec le CLI), verifier / chercher_offres / media exécutés pour de vrai"
-              : "historique de démonstration : AELYN Core (aelyn-api) injoignable, commandes simulées localement"}
+              : "AELYN Core (aelyn-api) injoignable : aucun historique, commandes simulées localement"}
           </span>
         </div>
         <div className={styles.toolbarActions}>

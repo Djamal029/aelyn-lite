@@ -84,7 +84,7 @@ def main(argv: list[str] | None = None) -> int:
 
     from aelyn_email.agent import run_command
 
-    code, _mails = run_command(
+    code, _mails, _triage = run_command(
         args.command,
         limit=getattr(args, "limit", None),
         action_id=getattr(args, "id", None),

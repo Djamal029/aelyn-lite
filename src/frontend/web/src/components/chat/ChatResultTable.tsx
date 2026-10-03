@@ -56,6 +56,11 @@ export function ChatResultTable({ resultType, results }: ChatResultTableProps) {
   }
 
   const mails = results as ApiEmailListItem[];
+  // "triage" renvoie une action_proposee par mail, "verifier" non (simple
+  // liste des non-lus) : colonne ajoutée seulement quand il y a vraiment
+  // quelque chose à y montrer, plutôt qu'une colonne "Action" vide pour
+  // verifier.
+  const hasActions = mails.some((m) => m.action_proposee);
   return (
     <div className={styles.wrap}>
       <div className={styles.scroll}>
@@ -65,6 +70,7 @@ export function ChatResultTable({ resultType, results }: ChatResultTableProps) {
               <th>Expéditeur</th>
               <th>Objet</th>
               <th>Date</th>
+              {hasActions ? <th>Action proposée</th> : null}
             </tr>
           </thead>
           <tbody>
@@ -73,6 +79,7 @@ export function ChatResultTable({ resultType, results }: ChatResultTableProps) {
                 <td>{m.sender || m.sender_email}</td>
                 <td>{m.subject}</td>
                 <td className={styles.date}>{formatMailDate(m.date)}</td>
+                {hasActions ? <td>{m.action_proposee ?? "N/A"}</td> : null}
               </tr>
             ))}
           </tbody>

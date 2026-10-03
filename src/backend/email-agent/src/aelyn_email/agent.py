@@ -261,7 +261,7 @@ def run_command(
     hours: int = 24,
     agent: EmailAgent | None = None,
     plain: bool = False,
-) -> tuple[int, list[Mail]]:
+) -> tuple[int, list[Mail], list[dict] | None]:
     """Exécute une commande déjà résolue (verifier/triage/valider/rejeter/rapport).
 
     Point d'entrée partagé par `aelyn.cli` (sous-commandes directes) et
@@ -275,6 +275,13 @@ def run_command(
     sinon), pour qu'un appelant puisse ensuite résumer/répondre à l'un
     d'eux précisément, sans refaire une requête IMAP.
 
+    Le 3e élément porte, UNIQUEMENT pour `triage` (`None` sinon), l'analyse
+    par mail (`action_proposee`/`urgence`/`resume`/`action_id`) : `triage()`
+    la calculait déjà mais ne la renvoyait jamais au-delà de cette fonction
+    (seuls les `Mail` nus sortaient), donc aucun appelant - CLI ou agent
+    conversationnel - ne pouvait afficher l'action proposée ailleurs que
+    dans le texte imprimé ici.
+
     `plain=True` (utilisé par `aelyn_conversation`) garde le format simple
     une-ligne-par-mail au lieu du tableau Rich, pour ne pas casser le
     regroupement de la sortie capturée (cf. `_print_mail_table`).
@@ -284,13 +291,13 @@ def run_command(
             mails = client.list_unread(limit)
             if not mails:
                 print("Aucun mail non lu.")
-                return 0, []
+                return 0, [], None
             if plain:
                 for mail in mails:
                     print(f"[{mail.uid}] {mail.sender} <{mail.sender_email}> : {mail.subject}")
             else:
                 _print_mail_table(mails)
-            return 0, mails
+            return 0, mails, None
 
         if agent is None:
             agent = EmailAgent()
@@ -300,34 +307,44 @@ def run_command(
             resultats = agent.triage(limit)
             if not resultats:
                 print("Aucun mail non lu.")
-                return 0, []
+                return 0, [], None
             for mail, analyse, action_id_ in resultats:
                 print(
                     f"#{action_id_} [urgence {analyse.urgence}] "
                     f"{analyse.action_proposee.value} : {mail.subject}"
                 )
                 print(f"    {analyse.resume}")
-            return 0, [mail for mail, _, _ in resultats]
+            triage_info = [
+                {
+                    "uid": mail.uid,
+                    "action_proposee": analyse.action_proposee.value,
+                    "urgence": analyse.urgence,
+                    "resume": analyse.resume,
+                    "action_id": action_id_,
+                }
+                for mail, analyse, action_id_ in resultats
+            ]
+            return 0, [mail for mail, _, _ in resultats], triage_info
 
         if command == "valider":
             ok = agent.execute(action_id)
             print("Exécuté." if ok else "Non exécuté (voir logs).")
-            return (0 if ok else 1), []
+            return (0 if ok else 1), [], None
 
         if command == "rejeter":
             agent.reject(action_id)
             print(f"Proposition #{action_id} rejetée.")
-            return 0, []
+            return 0, [], None
 
         if command == "rapport":
             print("Un instant, je m'en charge…")
             print(agent.compte_rendu(hours))
-            return 0, []
+            return 0, [], None
 
-        return 1, []
+        return 1, [], None
     except (LLMError, MailboxError, ValueError) as exc:
         # ValueError : numéro d'action inexistant/déjà traité (execute/reject).
         # Une entrée utilisateur (ou une reconnaissance vocale) invalide ne
         # doit jamais planter toute la session, juste être signalée.
         print(f"Erreur : {exc}", file=sys.stderr)
-        return 1, []
+        return 1, [], None
