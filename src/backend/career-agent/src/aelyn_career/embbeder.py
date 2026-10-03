@@ -119,6 +119,22 @@ class TextEmbbeder:
         return util.cos_sim(chunks_embeddings, offre_embedding).squeeze(-1).numpy()
 
     @staticmethod
+    def _squash_cosine(scores: np.ndarray, center: float = 0.55, steepness: float = 25.0) -> np.ndarray:
+        """Resserre la similarité cosinus autour de `center` via une
+        sigmoïde, au lieu d'un simple `(x+1)/2` linéaire sur l'échelle
+        théorique [-1, 1] : mesuré en direct (BAAI/bge-m3, texte court de
+        compétences), le cosinus entre un profil et une offre QUELCONQUE
+        — même totalement hors-sujet (hôtesse d'accueil) — reste TOUJOURS
+        dans une bande étroite 0.45-0.65, jamais proche de 0 ni de 1,
+        quelle que soit la pertinence réelle : un simple `(x+1)/2` mappe
+        alors TOUT le monde vers 0.6-0.8, sans séparation utile. `center`
+        est le point milieu empirique entre "offre hors-sujet" (~0.50-0.55)
+        et "offre pertinente" (~0.60+) observé sur ce modèle ; à ajuster si
+        `EMBEDDING_MODEL_NAME` change. `steepness` amplifie l'écart, même
+        faible en valeur absolue, en écart de score significatif."""
+        return 1.0 / (1.0 + np.exp(-steepness * (scores - center)))
+
+    @staticmethod
     def _squash_bm25(scores: np.ndarray, scale: float = 8.0) -> np.ndarray:
         """Ramène BM25 (non borné, peut dépasser 10-20 selon le corpus) sur
         une échelle FIXE [0, 1[ via `1 - exp(-score/scale)`, jamais un
@@ -143,9 +159,11 @@ class TextEmbbeder:
         redémarrage).
 
         Les deux signaux sont ramenés sur [0, 1] par une transformation À
-        ÉCHELLE FIXE (jamais relative à l'offre en cours) : le cosinus est
-        déjà borné ([-1, 1], donc un simple `(x+1)/2`), et BM25 passe par
-        `_squash_bm25`. Un min-max PAR OFFRE (comme avant ce correctif)
+        ÉCHELLE FIXE (jamais relative à l'offre en cours) : le cosinus
+        passe par `_squash_cosine` (sigmoïde, PAS un simple `(x+1)/2` —
+        la plage [-1, 1] n'est jamais atteinte en pratique sur ce type de
+        texte, voir son docstring), et BM25 passe par `_squash_bm25`. Un
+        min-max PAR OFFRE (comme avant ce correctif)
         écraserait la différence entre une offre vraiment pertinente et
         une offre hors-sujet qui n'a, par hasard, qu'un très faible
         chevauchement lexical/sémantique : les deux remonteraient à des
@@ -163,6 +181,25 @@ class TextEmbbeder:
         chunks_embeddings = np.array([self.encode_cached(chunk["text"]) for chunk in chunks_text])
         offre_embedding = self.encode_cached(competences)
         cos_sim_raw = self.similarity(chunks_embeddings, offre_embedding)
-        cos_sim = (cos_sim_raw + 1.0) / 2.0
+        cos_sim = self._squash_cosine(cos_sim_raw)
 
         return settings.weight_score_txt_match * word_match + settings.weight_score_cos * cos_sim
+
+    def query_relevance(self, keywords: str, intitule: str, competences: str | list[str]) -> float:
+        """Facteur multiplicatif dans [0, 1] qui pénalise une offre qui
+        matche bien le PROFIL global mais ne correspond pas à ce que
+        l'utilisateur a explicitement cherché : le score contre le profil
+        seul (`final_score`) classe par "est-ce que ça me correspond en
+        général", pas par "est-ce bien ce que j'ai demandé" — bug réel
+        observé en direct, une recherche "intelligence artificielle"
+        faisait remonter des offres "Développeur C#"/"QA Testeur" à un
+        score proche des vraies offres IA, uniquement parce qu'un profil
+        avec de l'expérience logicielle matche raisonnablement N'IMPORTE
+        quelle offre tech. Compare `keywords` (le terme cherché tel quel)
+        au TITRE et aux compétences extraites de l'offre, pas au profil."""
+        if isinstance(competences, list):
+            competences = " ".join(competences)
+        query_embedding = self.encode_cached(keywords)
+        offre_embedding = self.encode_cached(f"{intitule}\n{competences}")
+        cos_sim = float(util.cos_sim(query_embedding, offre_embedding).item())
+        return float(self._squash_cosine(np.asarray(cos_sim), center=0.5, steepness=20.0))

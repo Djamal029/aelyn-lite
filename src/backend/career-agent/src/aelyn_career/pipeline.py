@@ -87,12 +87,27 @@ def find_best_matches(
         # s'adapte à CANDIDATE_LEVEL, pas seulement au profil de l'auteur.
         adequacy = niveau_adequacy(offre_structuree["niveau_requis"])
 
+        # Score contre le PROFIL (ci-dessus) seul : répond à "est-ce que ça
+        # me correspond en général", pas à "est-ce bien ce que j'ai cherché"
+        # — bug réel : "cherche des offres en intelligence artificielle"
+        # faisait remonter "Développeur C#"/"QA Testeur" à un score proche
+        # des vraies offres IA, un profil avec de l'expérience logicielle
+        # matchant raisonnablement N'IMPORTE quelle offre tech. Seulement
+        # quand l'utilisateur a VRAIMENT précisé un mot-clé (pas la
+        # recherche par défaut, trop large pour une comparaison directe).
+        relevance = 1.0
+        if keywords:
+            relevance = embedder.query_relevance(
+                keywords, offre.get("intitule", ""), offre_structuree["competences_requises"]
+            )
+
         resultats.append(
             {
                 **offre,
                 "structured": offre_structuree,
-                "score": float(np.mean(scores[top_indices])) * adequacy,
+                "score": float(np.mean(scores[top_indices])) * adequacy * relevance,
                 "niveau_adequacy": adequacy,
+                "query_relevance": relevance,
                 "raisons": raisons,
             }
         )
