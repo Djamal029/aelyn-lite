@@ -200,39 +200,11 @@ def _voice_assets_status() -> dict:
 
 @router.get("/status")
 def system_status() -> dict:
-    cpu_percent = psutil.cpu_percent(interval=0.2)
-    vmem = psutil.virtual_memory()
-    disk = psutil.disk_usage(str(settings.data_dir.anchor or "/"))
-    net = psutil.net_io_counters()
-
+    resources = system_resources()
     ollama = ollama_status()
 
     return {
-        "resources": {
-            "cpu_percent": cpu_percent,
-            "cpu_temp_celsius": _cpu_temp_celsius(),
-            "ram": {
-                "percent": vmem.percent,
-                "used_mb": round(vmem.used / 1_000_000, 1),
-                "total_mb": round(vmem.total / 1_000_000, 1),
-            },
-            "disk": {
-                "percent": disk.percent,
-                "used_gb": round(disk.used / 1_000_000_000, 1),
-                "total_gb": round(disk.total / 1_000_000_000, 1),
-            },
-            "gpu": _gpu_status(),
-            "network": {
-                "bytes_sent": net.bytes_sent,
-                "bytes_recv": net.bytes_recv,
-                "note": (
-                    "cumulé depuis le démarrage du système, PAS un débit "
-                    "instantané (nécessiterait une fenêtre d'échantillonnage)"
-                ),
-            },
-            "uptime_seconds": round(time.time() - _PROCESS.create_time()),
-            "uptime_note": "durée de vie du PROCESS API (pas du système), depuis son dernier démarrage",
-        },
+        "resources": resources,
         "services": {
             "ollama": {
                 **ollama,
@@ -257,4 +229,40 @@ def system_status() -> dict:
             "voice_assets": _voice_assets_status(),
             "tailscale": _tailscale_status(),
         },
+    }
+
+
+@router.get("/resources")
+def system_resources() -> dict:
+    """Mesures système seules, sans appels IMAP/France Travail/Ollama.
+
+    Cette route peut être actualisée régulièrement par la page Données :
+    chaque nombre est mesuré à la requête, et aucun historique fictif
+    n'est présenté comme une télémétrie persistante.
+    """
+    cpu_percent = psutil.cpu_percent(interval=0.2)
+    vmem = psutil.virtual_memory()
+    disk = psutil.disk_usage(str(settings.data_dir.anchor or "/"))
+    net = psutil.net_io_counters()
+    return {
+        "cpu_percent": cpu_percent,
+        "cpu_temp_celsius": _cpu_temp_celsius(),
+        "ram": {
+            "percent": vmem.percent,
+            "used_mb": round(vmem.used / 1_000_000, 1),
+            "total_mb": round(vmem.total / 1_000_000, 1),
+        },
+        "disk": {
+            "percent": disk.percent,
+            "used_gb": round(disk.used / 1_000_000_000, 1),
+            "total_gb": round(disk.total / 1_000_000_000, 1),
+        },
+        "gpu": _gpu_status(),
+        "network": {
+            "bytes_sent": net.bytes_sent,
+            "bytes_recv": net.bytes_recv,
+            "note": "cumulé depuis le démarrage du système, pas un débit instantané",
+        },
+        "uptime_seconds": round(time.time() - _PROCESS.create_time()),
+        "uptime_note": "durée de vie du processus API depuis son dernier démarrage",
     }

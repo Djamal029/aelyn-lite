@@ -12,6 +12,7 @@ from functools import lru_cache
 
 from aelyn.core.chat_history import ChatHistory
 from aelyn.core.config import settings
+from aelyn.core.journal import Journal
 from aelyn.core.llm import LLMClient
 from aelyn_career.application_writer import ApplicationWriter
 from aelyn_career.france_travail.offers import FTOffers
@@ -51,6 +52,15 @@ def get_media_controller() -> MediaController:
 @lru_cache
 def get_chat_history() -> ChatHistory:
     return ChatHistory(settings.chat_history_path)
+
+
+@lru_cache
+def get_journal() -> Journal:
+    # Même fichier SQLite que `EmailAgent`/`LLMOfferStructurer` (tous deux
+    # construisent leur propre `Journal(settings.journal_path)` sans
+    # passer par ce singleton) : une seule table `actions`, lue ici en
+    # lecture seule pour GET /activity.
+    return Journal(settings.journal_path)
 
 
 @lru_cache

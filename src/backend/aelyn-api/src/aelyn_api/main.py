@@ -21,7 +21,7 @@ import sys
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from aelyn_api.routers import career, chat, email, health, media, security, system, tts
+from aelyn_api.routers import activity, career, chat, email, health, media, security, system, tts
 from aelyn_api.routers import settings as settings_router
 
 # Même correctif que `aelyn.cli.main()` : la console Windows encode en
@@ -58,6 +58,7 @@ app.add_middleware(
 )
 
 app.include_router(health.router)
+app.include_router(activity.router)
 app.include_router(system.router)
 app.include_router(email.router)
 app.include_router(career.router)

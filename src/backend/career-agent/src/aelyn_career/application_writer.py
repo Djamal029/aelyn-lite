@@ -365,6 +365,27 @@ class ApplicationWriter:
             validated.append(CVProjet(titre=p.titre, description=reelle))
         return validated
 
+    def _real_formation(self) -> list[str]:
+        """Reprend la formation directement du profil réel, jamais la
+        paraphrase du LLM pour `cv.formation` (simple `list[str]`, sans
+        validation jusqu'ici contrairement à `experiences`/`projets`) :
+        malgré le prompt ("reprends l'établissement et le diplôme
+        EXACTEMENT...") et le chunk RAG dédié déjà ajouté pour lui donner
+        la vraie donnée (cf. le commentaire dans
+        `profil_manager.parse_profile`), le LLM peut encore la reformuler
+        ou en omettre une. Contrairement à l'expérience/aux projets, il
+        n'y a aucune raison de filtrer la formation par pertinence à
+        l'offre (le profil en compte typiquement 1 à 3 entrées, toutes
+        attendues dans n'importe quel CV) : on reconstruit la liste en
+        entier depuis le profil plutôt que de valider/filtrer la sortie
+        du LLM."""
+        return [
+            f"{chunk['metadata']['degree']} en {chunk['metadata']['field']}, "
+            f"{chunk['metadata']['institution']} ({chunk['metadata'].get('period', '?')})"
+            for chunk in self.profil_manager.parse_profile()
+            if chunk["type"] == "education"
+        ]
+
     def draft_cv(self, offer_text: str) -> CVContent:
         cv = self.llm.structured(
             schema=CVContent,
@@ -374,6 +395,7 @@ class ApplicationWriter:
         )
         cv.experiences = self._validate_experiences(cv.experiences)
         cv.projets = self._validate_projets(cv.projets)
+        cv.formation = self._real_formation()
         return cv
 
     @staticmethod

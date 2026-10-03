@@ -8,6 +8,22 @@ from aelyn_career.profil_manager import ProfilManager
 def make_profile() -> dict:
     return {
         "profile": {
+            "education": [
+                {
+                    "institution": "ENSAI",
+                    "degree": "Diplôme d'ingénieur",
+                    "field": "Science des données, Machine Learning, Intelligence Artificielle",
+                    "location": "France, Rennes",
+                    "period": "2024-2027",
+                },
+                {
+                    "institution": "Université Nazi Boni",
+                    "degree": "Licence",
+                    "field": "Statistique et Informatique",
+                    "location": "Burkina Faso",
+                    "period": "2020-2023",
+                },
+            ],
             "experience": [
                 {
                     "role": "Stagiaire Data Scientist",
@@ -107,6 +123,22 @@ def test_cv_keeps_distinct_same_employer_experiences_and_omitted_recent_period()
     ]
     assert any("approximately 42% reduction" in bullet for bullet in muraz[0].puces)
     assert len(validated) == 4
+
+
+def test_cv_formation_comes_from_profile_not_llm():
+    """`cv.formation` (simple `list[str]`) n'avait aucune validation,
+    contrairement aux expériences/projets : le LLM pouvait reformuler ou
+    omettre un diplôme malgré le prompt. `_real_formation` doit retrouver
+    les deux entrées réelles, dans l'ordre du profil, peu importe ce que
+    le LLM aurait produit."""
+    writer = make_writer()
+    formation = writer._real_formation()
+
+    assert formation == [
+        "Diplôme d'ingénieur en Science des données, Machine Learning, "
+        "Intelligence Artificielle, ENSAI (2024-2027)",
+        "Licence en Statistique et Informatique, Université Nazi Boni (2020-2023)",
+    ]
 
 
 def test_cv_replaces_llm_period_with_exact_profile_period():

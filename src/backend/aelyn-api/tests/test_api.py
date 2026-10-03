@@ -43,6 +43,90 @@ class TestCameras:
         assert response.status_code == 404
 
 
+class TestSystemResources:
+    def test_resource_snapshot_is_lightweight_and_measured(self, monkeypatch) -> None:
+        import aelyn_api.routers.system as system
+
+        class Memory:
+            percent = 42.0
+            used = 4_200_000_000
+            total = 10_000_000_000
+
+        class Disk:
+            percent = 51.0
+            used = 51_000_000_000
+            total = 100_000_000_000
+
+        class Network:
+            bytes_sent = 1_000
+            bytes_recv = 2_000
+
+        def unexpected_service_call():
+            raise AssertionError("La route ressources ne doit pas tester les services")
+
+        monkeypatch.setattr(system.psutil, "cpu_percent", lambda interval: 17.0)
+        monkeypatch.setattr(system.psutil, "virtual_memory", lambda: Memory())
+        monkeypatch.setattr(system.psutil, "disk_usage", lambda path: Disk())
+        monkeypatch.setattr(system.psutil, "net_io_counters", lambda: Network())
+        monkeypatch.setattr(system, "_cpu_temp_celsius", lambda: {"available": False, "value": None})
+        monkeypatch.setattr(system, "_gpu_status", lambda: {"available": False, "reason": "test"})
+        monkeypatch.setattr(system, "_imap_status", unexpected_service_call)
+        monkeypatch.setattr(system, "_france_travail_status", unexpected_service_call)
+        monkeypatch.setattr(system, "ollama_status", unexpected_service_call)
+
+        response = client.get("/system/resources")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["cpu_percent"] == 17.0
+        assert data["ram"]["percent"] == 42.0
+        assert data["disk"]["percent"] == 51.0
+        assert data["gpu"]["available"] is False
+        assert isinstance(data["uptime_seconds"], int)
+
+
+class TestSystemResources:
+    def test_resource_snapshot_is_lightweight_and_measured(self, monkeypatch) -> None:
+        import aelyn_api.routers.system as system
+
+        class Memory:
+            percent = 42.0
+            used = 4_200_000_000
+            total = 10_000_000_000
+
+        class Disk:
+            percent = 51.0
+            used = 51_000_000_000
+            total = 100_000_000_000
+
+        class Network:
+            bytes_sent = 1_000
+            bytes_recv = 2_000
+
+        def unexpected_service_call():
+            raise AssertionError("La route ressources ne doit pas tester les services")
+
+        monkeypatch.setattr(system.psutil, "cpu_percent", lambda interval: 17.0)
+        monkeypatch.setattr(system.psutil, "virtual_memory", lambda: Memory())
+        monkeypatch.setattr(system.psutil, "disk_usage", lambda path: Disk())
+        monkeypatch.setattr(system.psutil, "net_io_counters", lambda: Network())
+        monkeypatch.setattr(system, "_cpu_temp_celsius", lambda: {"available": False, "value": None})
+        monkeypatch.setattr(system, "_gpu_status", lambda: {"available": False, "reason": "test"})
+        monkeypatch.setattr(system, "_imap_status", unexpected_service_call)
+        monkeypatch.setattr(system, "_france_travail_status", unexpected_service_call)
+        monkeypatch.setattr(system, "ollama_status", unexpected_service_call)
+
+        response = client.get("/system/resources")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["cpu_percent"] == 17.0
+        assert data["ram"]["percent"] == 42.0
+        assert data["disk"]["percent"] == 51.0
+        assert data["gpu"]["available"] is False
+        assert isinstance(data["uptime_seconds"], int)
+
+
 class TestMediaActions:
     def test_list_actions_includes_known_commands(self) -> None:
         response = client.get("/media/actions")
@@ -198,3 +282,73 @@ class TestSettingsPasskeyFlow:
         )
 
         assert response.status_code == 401
+
+
+class TestActivity:
+    """GET /activity : vide pour un journal/historique sans contenu
+    (nouvel utilisateur), rempli sinon - jamais le mock statique affiché
+    jusqu'ici côté frontend (mocks/activity.ts). L'endpoint fusionne
+    maintenant Journal (propositions/actions) ET ChatHistory (échanges) :
+    les deux dépendances doivent être mockées, sinon le vrai historique de
+    chat de la machine de dev (des centaines d'échanges réels) fuite dans
+    des tests censés ne vérifier que le comportement du Journal."""
+
+    def test_empty_sources_return_empty_list(self) -> None:
+        from aelyn_api.deps import get_chat_history, get_journal
+
+        journal = MagicMock()
+        journal.since.return_value = []
+        history = MagicMock()
+        history.recent.return_value = []
+        app.dependency_overrides[get_journal] = lambda: journal
+        app.dependency_overrides[get_chat_history] = lambda: history
+        try:
+            response = client.get("/activity")
+        finally:
+            app.dependency_overrides.clear()
+
+        assert response.status_code == 200
+        assert response.json() == []
+
+    def test_excludes_structure_offer_cache_noise(self) -> None:
+        from datetime import datetime, timezone
+
+        from aelyn.core.journal import Action, ActionStatus
+        from aelyn_api.deps import get_chat_history, get_journal
+
+        journal = MagicMock()
+        journal.since.return_value = [
+            Action(
+                id=1,
+                ts=datetime.now(timezone.utc),
+                agent="career",
+                action="structure_offer",
+                target="offre-1",
+                summary="Offre structurée (niveau junior)",
+                status=ActionStatus.EXECUTED,
+                payload={},
+            ),
+            Action(
+                id=2,
+                ts=datetime.now(timezone.utc),
+                agent="email",
+                action="archiver",
+                target="spam@example.com",
+                summary="Newsletter : promotion.",
+                status=ActionStatus.PROPOSED,
+                payload={},
+            ),
+        ]
+        history = MagicMock()
+        history.recent.return_value = []
+        app.dependency_overrides[get_journal] = lambda: journal
+        app.dependency_overrides[get_chat_history] = lambda: history
+        try:
+            response = client.get("/activity")
+        finally:
+            app.dependency_overrides.clear()
+
+        body = response.json()
+        assert len(body) == 1
+        assert body[0]["source"] == "email"
+        assert "Newsletter" in body[0]["message"]
