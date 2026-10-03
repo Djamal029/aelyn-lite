@@ -14,6 +14,12 @@ export interface InterpretedCommand {
   /** Set when `command === "chercher_offres"` and a keyword phrase was
    * actually extracted, used to call the real `GET /career`. */
   careerKeywords?: string;
+  /** Set when `command` is `"valider"`/`"rejeter"` and a numeric id was
+   * found in the phrase, used by lib/commandResolver.ts to call the real
+   * `POST /email/{id}/validate|reject` (the only way to actually act on a
+   * triage proposal from the web UI: `POST /chat/message` deliberately
+   * refuses to execute these). */
+  actionId?: number;
   /** Set by lib/commandResolver.ts once a real list is available (either
    * from the fast-path GET /email / GET /career calls, or from
    * POST /chat/message's own result_type/results), so ChatMessage can
@@ -74,25 +80,27 @@ export function interpretCommand(raw: string): InterpretedCommand {
     };
   }
 
-  const validateMatch = normalized.match(/\bvalide?\w*\s+(?:la\s+|le\s+|#)?(\d+)/);
+  const validateMatch = normalized.match(/\bvalide?\w*\s+(?:l['’]action\s+)?(?:la\s+|le\s+|#)?(\d+)/);
   if (validateMatch) {
     return {
       command: "valider",
       understood: `COMPRIS : Valider l'action #${validateMatch[1]}`,
-      resultText: "Action exécutée. (démonstration locale, aucun endpoint de validation mail côté aelyn-api pour l'instant)",
+      resultText: `Action #${validateMatch[1]} exécutée.`,
       status: "done",
       needsConfirmation: true,
+      actionId: Number(validateMatch[1]),
     };
   }
 
-  const rejectMatch = normalized.match(/\brejette?\w*\s+(?:la\s+|le\s+|#)?(\d+)/);
+  const rejectMatch = normalized.match(/\brejette?\w*\s+(?:l['’]action\s+)?(?:la\s+|le\s+|#)?(\d+)/);
   if (rejectMatch) {
     return {
       command: "rejeter",
       understood: `COMPRIS : Rejeter l'action #${rejectMatch[1]}`,
-      resultText: "Action rejetée. (démonstration locale, aucun endpoint de rejet mail côté aelyn-api pour l'instant)",
+      resultText: `Action #${rejectMatch[1]} rejetée.`,
       status: "done",
       needsConfirmation: true,
+      actionId: Number(rejectMatch[1]),
     };
   }
 

@@ -151,6 +151,21 @@ export function getEmails(limit = 20): Promise<ApiEmailListItem[]> {
   return request(`/email?limit=${limit}`);
 }
 
+export interface ApiEmailActionResult {
+  status: string;
+}
+
+/** Exécute/rejette une proposition de triage déjà faite (uniquement cette
+ * route-ci le permet : POST /chat/message refuse délibérément valider/
+ * rejeter, cf. son docstring). */
+export function validateEmailAction(actionId: number): Promise<ApiEmailActionResult> {
+  return request(`/email/${actionId}/validate`, { method: "POST" });
+}
+
+export function rejectEmailAction(actionId: number): Promise<ApiEmailActionResult> {
+  return request(`/email/${actionId}/reject`, { method: "POST" });
+}
+
 export function getEmailSummary(uid: number | string): Promise<ApiEmailSummary> {
   return request(`/email/${uid}/summary`, { timeoutMs: 60_000 });
 }
@@ -187,14 +202,29 @@ export interface ApiCvContent {
  * app actually displays are typed here; everything else is ignored
  * rather than assumed. All optional since a fast-path result (plain
  * `ApiCareerOffer`, e.g. from `getCareerOffers`) is also valid here. */
+/** Deux formes possibles selon la route qui a produit ce résultat :
+ * `GET /career` (OfferOut, pas utilisé actuellement côté frontend)
+ * aplatit entreprise/lieu/contrat en chaînes ; `POST /chat/message`
+ * renvoie le dict France Travail BRUT (`TurnResult.results`, aucun
+ * modèle Pydantic ne le filtre), avec `entreprise`/`lieuTravail` en
+ * objets imbriqués et `typeContrat`/`dateCreation` en camelCase. Les
+ * deux formes sont acceptées ici ; voir les fonctions `offer*` dans
+ * ChatResultTable.tsx qui les normalisent à l'affichage. */
 export interface ApiOfferResult {
   id?: string;
   intitule?: string;
-  entreprise?: string;
+  entreprise?: string | { nom?: string };
+  lieuTravail?: { libelle?: string };
   lieu?: string;
+  typeContrat?: string;
   contrat?: string;
+  dateCreation?: string;
   date_creation?: string;
   score?: number;
+  /** Lien RÉEL pour postuler (France Travail), jamais un lien inventé
+   * par le LLM, toujours celui de l'annonce source. Absent si France
+   * Travail ne l'a pas fourni. */
+  origineOffre?: { urlOrigine?: string };
 }
 
 export function getCareerOffers(params: { motsCles?: string; contractType?: ContractType } = {}): Promise<ApiCareerOffer[]> {

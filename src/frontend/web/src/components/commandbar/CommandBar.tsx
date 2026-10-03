@@ -2,6 +2,7 @@ import { useState, type KeyboardEvent } from "react";
 import { useCommandRunner } from "../../lib/useCommandRunner";
 import type { InterpretedCommand } from "../../lib/commandInterpreter";
 import { StatusDot } from "../ui/StatusDot";
+import { ChatResultTable } from "../chat/ChatResultTable";
 import styles from "./CommandBar.module.css";
 
 interface ScrollbackEntry {
@@ -74,7 +75,22 @@ export function CommandBar({ variant = "console", placeholder, onMicClick, onSub
               ) : entry.result ? (
                 <>
                   {entry.result.understood ? <div className={styles.understood}>{entry.result.understood}</div> : null}
-                  {entry.result.resultText ? <div className={styles.result}>{entry.result.resultText}</div> : null}
+                  {entry.result.resultText ? (
+                    <div className={styles.result}>
+                      {/* Un tableau de résultats (offres/mails), quand il y en a un,
+                       * remplace le texte prose en-dessous du premier mot - même
+                       * convention que ChatMessage.tsx (la variante "chatInput") :
+                       * sans ça, cette variante "console" (Overview) n'avait AUCUN
+                       * moyen d'afficher un tableau, juste le texte brut multi-lignes
+                       * de la liste, quel que soit `resultType`/`results`. */}
+                      {entry.result.resultType && entry.result.results && entry.result.results.length > 0
+                        ? entry.result.resultText.split("\n")[0]
+                        : entry.result.resultText}
+                    </div>
+                  ) : null}
+                  {entry.result.resultType && entry.result.results && entry.result.results.length > 0 ? (
+                    <ChatResultTable resultType={entry.result.resultType} results={entry.result.results} />
+                  ) : null}
                   <div
                     className={[
                       styles.status,

@@ -1,5 +1,5 @@
 import { interpretCommand, type InterpretedCommand } from "./commandInterpreter";
-import { ApiError, sendChatMessage, triggerMediaAction } from "./api";
+import { ApiError, rejectEmailAction, sendChatMessage, triggerMediaAction, validateEmailAction } from "./api";
 import { isBackendLive } from "./backendStatus";
 import { LITE_MODE } from "./liteMode";
 
@@ -54,6 +54,27 @@ export async function resolveCommand(rawText: string): Promise<InterpretedComman
     if (base.command === "media" && base.mediaAction) {
       await triggerMediaAction(base.mediaAction);
       return base;
+    }
+
+    // `POST /chat/message` refuse délibérément d'exécuter valider/rejeter
+    // (cf. le docstring de `ConversationalAgent.handle_message`,
+    // `confirm=False`) : jusqu'ici, "valide l'action 3" dans le chat web
+    // n'avait donc JAMAIS d'effet réel, juste un texte l'expliquant. Avec
+    // un id numérique trouvé dans la phrase, on appelle directement la
+    // vraie route d'exécution à la place.
+    if ((base.command === "valider" || base.command === "rejeter") && base.actionId !== undefined) {
+      const result =
+        base.command === "valider" ? await validateEmailAction(base.actionId) : await rejectEmailAction(base.actionId);
+      return {
+        ...base,
+        resultText:
+          base.command === "valider"
+            ? result.status === "executed"
+              ? `Action #${base.actionId} exécutée.`
+              : `Action #${base.actionId} non exécutée (envoi autonome désactivé, voir réglages).`
+            : `Action #${base.actionId} rejetée.`,
+        status: "done",
+      };
     }
 
     if (

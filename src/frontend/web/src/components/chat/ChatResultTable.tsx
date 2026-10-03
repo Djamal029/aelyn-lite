@@ -14,6 +14,25 @@ function formatMailDate(value: string | null): string {
   return Number.isNaN(date.getTime()) ? value : formatTimestamp(date.toISOString());
 }
 
+// Normalise les deux formes possibles d'une offre (cf. ApiOfferResult) :
+// sans ça, le dict brut France Travail que /chat/message renvoie
+// maintenant (entreprise/lieuTravail en objets imbriqués, pas les
+// chaînes aplaties que GET /career fournissait) affichait "[object
+// Object]" ou "N/A" partout dans ce tableau.
+function offerCompany(o: ApiOfferResult): string {
+  if (typeof o.entreprise === "string") return o.entreprise || "N/A";
+  return o.entreprise?.nom ?? "N/A";
+}
+function offerLocation(o: ApiOfferResult): string {
+  return o.lieu ?? o.lieuTravail?.libelle ?? "N/A";
+}
+function offerContract(o: ApiOfferResult): string {
+  return o.contrat ?? o.typeContrat ?? "N/A";
+}
+function offerApplyUrl(o: ApiOfferResult): string | undefined {
+  return o.origineOffre?.urlOrigine;
+}
+
 /** Renders a real chat-reply list (offer search / mail check) as an
  * actual table instead of the plain-sentence/bullet-list summary the
  * backend's `text` field alone would produce, same borders/spacing
@@ -36,18 +55,31 @@ export function ChatResultTable({ resultType, results }: ChatResultTableProps) {
                 <th>Lieu</th>
                 <th>Contrat</th>
                 <th>Score</th>
+                <th>Postuler</th>
               </tr>
             </thead>
             <tbody>
-              {offers.map((o, i) => (
-                <tr key={o.id ?? `${o.intitule ?? "offre"}-${i}`}>
-                  <td>{o.intitule ?? "N/A"}</td>
-                  <td>{o.entreprise ?? "N/A"}</td>
-                  <td>{o.lieu ?? "N/A"}</td>
-                  <td>{o.contrat ?? "N/A"}</td>
-                  <td className={styles.score}>{typeof o.score === "number" ? `${Math.round(o.score * 100)}%` : "N/A"}</td>
-                </tr>
-              ))}
+              {offers.map((o, i) => {
+                const applyUrl = offerApplyUrl(o);
+                return (
+                  <tr key={o.id ?? `${o.intitule ?? "offre"}-${i}`}>
+                    <td>{o.intitule ?? "N/A"}</td>
+                    <td>{offerCompany(o)}</td>
+                    <td>{offerLocation(o)}</td>
+                    <td>{offerContract(o)}</td>
+                    <td className={styles.score}>{typeof o.score === "number" ? `${Math.round(o.score * 100)}%` : "N/A"}</td>
+                    <td>
+                      {applyUrl ? (
+                        <a href={applyUrl} target="_blank" rel="noreferrer noopener">
+                          Lien
+                        </a>
+                      ) : (
+                        "N/A"
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

@@ -85,48 +85,6 @@ class TestSystemResources:
         assert isinstance(data["uptime_seconds"], int)
 
 
-class TestSystemResources:
-    def test_resource_snapshot_is_lightweight_and_measured(self, monkeypatch) -> None:
-        import aelyn_api.routers.system as system
-
-        class Memory:
-            percent = 42.0
-            used = 4_200_000_000
-            total = 10_000_000_000
-
-        class Disk:
-            percent = 51.0
-            used = 51_000_000_000
-            total = 100_000_000_000
-
-        class Network:
-            bytes_sent = 1_000
-            bytes_recv = 2_000
-
-        def unexpected_service_call():
-            raise AssertionError("La route ressources ne doit pas tester les services")
-
-        monkeypatch.setattr(system.psutil, "cpu_percent", lambda interval: 17.0)
-        monkeypatch.setattr(system.psutil, "virtual_memory", lambda: Memory())
-        monkeypatch.setattr(system.psutil, "disk_usage", lambda path: Disk())
-        monkeypatch.setattr(system.psutil, "net_io_counters", lambda: Network())
-        monkeypatch.setattr(system, "_cpu_temp_celsius", lambda: {"available": False, "value": None})
-        monkeypatch.setattr(system, "_gpu_status", lambda: {"available": False, "reason": "test"})
-        monkeypatch.setattr(system, "_imap_status", unexpected_service_call)
-        monkeypatch.setattr(system, "_france_travail_status", unexpected_service_call)
-        monkeypatch.setattr(system, "ollama_status", unexpected_service_call)
-
-        response = client.get("/system/resources")
-
-        assert response.status_code == 200
-        data = response.json()
-        assert data["cpu_percent"] == 17.0
-        assert data["ram"]["percent"] == 42.0
-        assert data["disk"]["percent"] == 51.0
-        assert data["gpu"]["available"] is False
-        assert isinstance(data["uptime_seconds"], int)
-
-
 class TestMediaActions:
     def test_list_actions_includes_known_commands(self) -> None:
         response = client.get("/media/actions")
@@ -352,3 +310,64 @@ class TestActivity:
         assert len(body) == 1
         assert body[0]["source"] == "email"
         assert "Newsletter" in body[0]["message"]
+
+
+class TestEmailActions:
+    """POST /email/{id}/validate|reject : seul moyen, pour le frontend web,
+    d'agir sur une proposition de triage déjà faite (le chat refuse
+    délibérément valider/rejeter, cf. `confirm=False`)."""
+
+    def test_validate_executes_and_returns_status(self) -> None:
+        from aelyn_api.deps import get_email_agent
+
+        agent = MagicMock()
+        agent.execute.return_value = True
+        app.dependency_overrides[get_email_agent] = lambda: agent
+        try:
+            response = client.post("/email/7/validate")
+        finally:
+            app.dependency_overrides.clear()
+
+        assert response.status_code == 200
+        assert response.json() == {"status": "executed"}
+        agent.execute.assert_called_once_with(7)
+
+    def test_validate_not_executed_when_autonomous_send_disabled(self) -> None:
+        from aelyn_api.deps import get_email_agent
+
+        agent = MagicMock()
+        agent.execute.return_value = False
+        app.dependency_overrides[get_email_agent] = lambda: agent
+        try:
+            response = client.post("/email/7/validate")
+        finally:
+            app.dependency_overrides.clear()
+
+        assert response.json() == {"status": "not_executed"}
+
+    def test_validate_unknown_action_is_404(self) -> None:
+        from aelyn_api.deps import get_email_agent
+
+        agent = MagicMock()
+        agent.execute.side_effect = ValueError("Action 999 introuvable")
+        app.dependency_overrides[get_email_agent] = lambda: agent
+        try:
+            response = client.post("/email/999/validate")
+        finally:
+            app.dependency_overrides.clear()
+
+        assert response.status_code == 404
+
+    def test_reject_rejects_and_returns_status(self) -> None:
+        from aelyn_api.deps import get_email_agent
+
+        agent = MagicMock()
+        app.dependency_overrides[get_email_agent] = lambda: agent
+        try:
+            response = client.post("/email/7/reject")
+        finally:
+            app.dependency_overrides.clear()
+
+        assert response.status_code == 200
+        assert response.json() == {"status": "rejected"}
+        agent.reject.assert_called_once_with(7)

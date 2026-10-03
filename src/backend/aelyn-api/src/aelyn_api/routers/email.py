@@ -1,10 +1,18 @@
 """Expose `EmailAgent`/`aelyn_email.client` à l'API.
 
-Mêmes garde-fous que le CLI/chat : aucun mail n'est envoyé ni archivé
-ici (pas de route d'exécution pour l'instant : `execute()`/`reject()`
-touchent l'état réel de la boîte et méritent le même soin de conception
-que la confirmation du chat avant d'être exposés en HTTP ; laissé pour
-une prochaine itération plutôt que bâclé ici).
+`POST /email/{action_id}/validate` et `.../reject` exécutent/rejettent une
+proposition de triage DÉJÀ FAITE (cf. `aelyn_email.agent.EmailAgent.triage`,
+qui enregistre chaque proposition dans le Journal avant tout). Pas de
+passkey ici (contrairement à `PATCH /settings`/`PUT /career/profile`, qui
+changent une CONFIGURATION) : cliquer "valider" sur une proposition déjà
+affichée dans l'UI n'est pas d'une nature différente de ce que la CLI fait
+déjà avec une simple confirmation y/n, pour un assistant mono-utilisateur
+sur sa propre machine. Auparavant, SEULE la CLI interactive pouvait
+exécuter une action : `POST /chat/message` (API HTTP sans terminal)
+refuse délibérément valider/rejeter (cf. `ConversationalAgent.
+handle_message`, `confirm=False`), donc dire "valide l'action 3" dans le
+chat web n'avait jamais rien fait d'autre qu'expliquer pourquoi - aucun
+moyen d'agir sur une proposition de triage depuis le frontend web.
 """
 
 from __future__ import annotations
@@ -15,11 +23,16 @@ from pydantic import BaseModel
 from aelyn.core.llm import LLMClient, LLMError
 from aelyn_conversation.prompts import SYSTEM_SUMMARY
 from aelyn_email import client
+from aelyn_email.agent import EmailAgent
 from aelyn_email.client import MailboxError
 
-from aelyn_api.deps import get_llm
+from aelyn_api.deps import get_email_agent, get_llm
 
 router = APIRouter(prefix="/email", tags=["email"])
+
+
+class ActionResultOut(BaseModel):
+    status: str
 
 
 class MailOut(BaseModel):
@@ -85,3 +98,24 @@ def summarize(uid: str, llm: LLMClient = Depends(get_llm)) -> MailSummaryOut:
         raise HTTPException(502, f"LLM indisponible : {exc}") from exc
 
     return MailSummaryOut(uid=mail.uid, subject=mail.subject, summary=summary)
+
+
+@router.post("/{action_id}/validate", response_model=ActionResultOut)
+def validate_action(action_id: int, agent: EmailAgent = Depends(get_email_agent)) -> ActionResultOut:
+    try:
+        ok = agent.execute(action_id)
+    except ValueError as exc:
+        raise HTTPException(404, str(exc)) from exc
+    # `execute()` renvoie `False` (pas une exception) pour "repondre"
+    # quand `ALLOW_AUTONOMOUS_SEND=false" (cf. son docstring) : un vrai
+    # résultat à distinguer de "introuvable/déjà traité", pas une erreur.
+    return ActionResultOut(status="executed" if ok else "not_executed")
+
+
+@router.post("/{action_id}/reject", response_model=ActionResultOut)
+def reject_action(action_id: int, agent: EmailAgent = Depends(get_email_agent)) -> ActionResultOut:
+    try:
+        agent.reject(action_id)
+    except ValueError as exc:
+        raise HTTPException(404, str(exc)) from exc
+    return ActionResultOut(status="rejected")

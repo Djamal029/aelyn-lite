@@ -1371,6 +1371,14 @@ class ConversationalAgent:
             return ""
         self._pending_action = {"kind": "prepare_cv", "offre": offre}
         question = f"Veux-tu que je prépare ton CV pour {offre.get('intitule') or 'cette offre'} ?"
+        # Lien RÉEL de l'annonce (France Travail), jamais inventé : AELYN
+        # rédige du contenu (CV/lettre), mais ne postule jamais à la place
+        # de l'utilisateur - sans ce lien, rien n'indiquait où aller une
+        # fois le CV/la lettre prêts (question réelle d'un utilisateur :
+        # "comment je postule une fois tout OK ?").
+        url = (offre.get("origineOffre") or {}).get("urlOrigine")
+        if url:
+            question += f"\n\nPour postuler une fois prêt(e) : {url}"
         _print_agent_bubble(question)
         return question
 
