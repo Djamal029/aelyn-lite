@@ -86,6 +86,17 @@ if (-not (Test-Path $EnvFile)) {
     Write-Host "  .env cree depuis .env.example"
 }
 
+# `profil.json` est volontairement non versionne (donnees perso) : sans ce
+# copier, aelyn-api plante au tout premier demarrage (profil_manager le
+# charge a l'import du module, donc avant meme qu'une route reponde),
+# observe en direct sur un clone neuf de la version lite.
+$ProfilFile = Join-Path $BackendDir "career-agent\src\aelyn_career\profil.json"
+$ProfilExample = Join-Path $BackendDir "career-agent\src\aelyn_career\profil.example.json"
+if ((-not (Test-Path $ProfilFile)) -and (Test-Path $ProfilExample)) {
+    Copy-Item $ProfilExample $ProfilFile
+    Write-Host "  profil.json cree depuis profil.example.json (edite-le avec tes vraies infos pour un CV/lettre pertinents)"
+}
+
 function Get-EnvValue($Key) {
     $out = uv run --project $BackendDir python -c "
 import dotenv, sys

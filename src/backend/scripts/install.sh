@@ -105,6 +105,17 @@ if [[ ! -f "$ENV_FILE" ]]; then
   echo "  .env créé depuis .env.example"
 fi
 
+# `profil.json` est volontairement non versionné (données perso) : sans ce
+# copier, aelyn-api plante au tout premier démarrage (profil_manager le
+# charge à l'import du module, donc avant même qu'une route réponde),
+# observé en direct sur un clone neuf de la version lite.
+PROFIL_FILE="$BACKEND_DIR/career-agent/src/aelyn_career/profil.json"
+PROFIL_EXAMPLE="$BACKEND_DIR/career-agent/src/aelyn_career/profil.example.json"
+if [[ ! -f "$PROFIL_FILE" ]] && [[ -f "$PROFIL_EXAMPLE" ]]; then
+  cp "$PROFIL_EXAMPLE" "$PROFIL_FILE"
+  echo "  profil.json créé depuis profil.example.json (édite-le avec tes vraies infos pour un CV/lettre pertinents)"
+fi
+
 env_get() {
   uv run --project "$BACKEND_DIR" python -c "
 import dotenv, sys

@@ -1,14 +1,20 @@
 import json
+import logging
 import os
+from pathlib import Path
+
 import dotenv
 
 dotenv.load_dotenv()
+
+logger = logging.getLogger(__name__)
 
 # Certifications et bénévolat sont chacun dédoublés en deux sources
 # (website/linkedin) dans profil.json ; même liste de sources pour les deux.
 SOURCES = ["website", "linkedin"]
 
 profil_path = os.getenv("PROFIL_PATH")
+_EXAMPLE_PROFIL_PATH = Path(__file__).parent / "profil.example.json"
 
 
 def load_profil_json(path: str | None = None) -> dict:
@@ -21,7 +27,26 @@ def load_profil_json(path: str | None = None) -> dict:
         return json.load(f)
 
 
-profil_json = load_profil_json()
+try:
+    profil_json = load_profil_json()
+except (FileNotFoundError, TypeError):
+    # `profil.json` est volontairement non versionné (données perso) :
+    # une installation neuve (ex. version lite tout juste clonée, avant
+    # même d'avoir lancé install.sh/.ps1 ou rempli son profil) ne l'a pas
+    # encore. Planter ici ferait planter l'IMPORT de ce module, donc TOUT
+    # aelyn-api dès le démarrage (observé en direct : la suite de tests
+    # entière de la version lite refusait de se collecter pour cette
+    # seule raison) - pire moment possible pour l'apprendre. Repli sur
+    # l'exemple bidon plutôt que de bloquer tout le process : CV/lettre
+    # de motivation produiront un résultat hors sujet avec ce profil
+    # fictif, mais rien d'autre (mail, média, conversation) n'est
+    # bloqué pour autant.
+    logger.warning(
+        "profil.json introuvable (%s) : repli sur profil.example.json. "
+        "Lance install.sh/.ps1, ou édite profil.json toi-même, pour un vrai profil.",
+        profil_path,
+    )
+    profil_json = load_profil_json(str(_EXAMPLE_PROFIL_PATH))
 
 
 def validate_profil_structure(data: object) -> list[str]:
