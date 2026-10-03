@@ -1,5 +1,7 @@
 import { useCallback } from "react";
 import { resolveCommand } from "./commandResolver";
+import { isBackendLive } from "./backendStatus";
+import { recordLocalActivity } from "./localActivity";
 import type { InterpretedCommand } from "./commandInterpreter";
 
 /** Classifies the phrase and, when aelyn-api is reachable, actually
@@ -12,6 +14,9 @@ export function useCommandRunner() {
   return useCallback(async (text: string): Promise<InterpretedCommand> => {
     const minDelay = new Promise((resolve) => window.setTimeout(resolve, 300 + Math.random() * 200));
     const [interpreted] = await Promise.all([resolveCommand(text), minDelay]);
+    if (!(await isBackendLive()) || interpreted.command === "media") {
+      recordLocalActivity(text, interpreted);
+    }
     return interpreted;
   }, []);
 }

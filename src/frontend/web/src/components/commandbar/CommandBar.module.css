@@ -1,7 +1,7 @@
 .bar {
   border-top: 1px solid var(--border-subtle);
   background: var(--bg-panel);
-  box-shadow: 0 -12px 24px -18px rgba(4, 6, 12, 0.6);
+  box-shadow: var(--shadow-command);
   flex-shrink: 0;
   display: flex;
   flex-direction: column;

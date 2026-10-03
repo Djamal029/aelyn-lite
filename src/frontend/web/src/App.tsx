@@ -20,7 +20,7 @@ export default function App() {
            * juste le lien) pour qu'une URL /cameras tapée à la main ne mène
            * pas non plus vers une page webcam de démo sans objet. */}
           <Route path="cameras" element={LITE_MODE ? <Navigate to="/" replace /> : <Cameras />} />
-          <Route path="security" element={<Security />} />
+          <Route path="security" element={LITE_MODE ? <Navigate to="/" replace /> : <Security />} />
           <Route path="assistant" element={<Assistant />} />
           <Route path="data" element={<Data />} />
           <Route path="activity" element={<Activity />} />

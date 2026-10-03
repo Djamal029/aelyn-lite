@@ -287,6 +287,22 @@ export function getChatHistory(limit = 50): Promise<ApiChatEntry[]> {
   return request(`/chat/history?limit=${limit}`);
 }
 
+// ---- Activity ------------------------------------------------------
+
+export interface ApiActivityEntry {
+  id: string;
+  timestamp: string;
+  message: string;
+  source: string;
+}
+
+/** GET /activity : le vrai Journal (aelyn.core.journal), vide pour un
+ * utilisateur sans historique réel au lieu du mock toujours affiché
+ * (mocks/activity.ts). `hours` par défaut côté backend (168 = 7 jours). */
+export function getActivity(hours?: number): Promise<ApiActivityEntry[]> {
+  return request(hours ? `/activity?hours=${hours}` : "/activity");
+}
+
 /** POST /chat/message's response shape. This now goes through the real
  * ConversationalAgent pipeline (same fast router + SYSTEM_INTENT routing
  * + offer/mail reference resolution as the CLI), not a bare LLM call, so
@@ -418,26 +434,28 @@ export function putCareerProfile(profile: unknown, token: string): Promise<{ sta
  * docstring on this endpoint). Replaces the previously-static mock
  * uptime/CPU/RAM/service-status text on Overview/System with this when
  * the backend is reachable. */
+export interface SystemResources {
+  cpu_percent: number;
+  cpu_temp_celsius: { value: number | null; available: boolean; reason?: string };
+  ram: { percent: number; used_mb: number; total_mb: number };
+  disk: { percent: number; used_gb: number; total_gb: number };
+  gpu:
+    | {
+        available: true;
+        name: string;
+        temperature_celsius: number;
+        utilization_percent: number;
+        memory_used_mb: number;
+        memory_total_mb: number;
+      }
+    | { available: false; reason: string };
+  network: { bytes_sent: number; bytes_recv: number; note: string };
+  uptime_seconds: number;
+  uptime_note: string;
+}
+
 export interface SystemStatus {
-  resources: {
-    cpu_percent: number;
-    cpu_temp_celsius: { value: number | null; available: boolean; reason?: string };
-    ram: { percent: number; used_mb: number; total_mb: number };
-    disk: { percent: number; used_gb: number; total_gb: number };
-    gpu:
-      | {
-          available: true;
-          name: string;
-          temperature_celsius: number;
-          utilization_percent: number;
-          memory_used_mb: number;
-          memory_total_mb: number;
-        }
-      | { available: false; reason: string };
-    network: { bytes_sent: number; bytes_recv: number; note: string };
-    uptime_seconds: number;
-    uptime_note: string;
-  };
+  resources: SystemResources;
   services: {
     ollama: {
       reachable: boolean;
@@ -456,6 +474,13 @@ export interface SystemStatus {
       | { available: true; connected: boolean; backend_state: string; tailscale_ips: string[] }
       | { available: false; connected: false; reason: string };
   };
+}
+
+/** Lightweight, real resource sample for the Data page. Unlike
+ * `/system/status`, this route does not check mail, France Travail or
+ * Ollama, so it is safe to refresh periodically while the page is open. */
+export function getSystemResources(): Promise<SystemResources> {
+  return request("/system/resources", { timeoutMs: 10_000 });
 }
 
 export function getSystemStatus(): Promise<SystemStatus> {

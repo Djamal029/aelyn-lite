@@ -70,7 +70,7 @@ export function ChatHistory({ messages, followLatest = true }: ChatHistoryProps)
       </div>
       <div className={styles.scroll} ref={scrollRef}>
         {groups.length === 0 ? (
-          <div className={styles.empty}>Aucun résultat pour « {query} ».</div>
+          query.trim() ? <div className={styles.empty}>Aucun résultat pour « {query} ».</div> : null
         ) : (
           groups.map(([label, msgs]) => (
             <div key={label}>

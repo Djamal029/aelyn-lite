@@ -6,13 +6,13 @@
   justify-content: space-between;
   padding: 0 var(--sp-4);
   border-bottom: 1px solid var(--border-default);
-  background: var(--bg-panel);
+  background: color-mix(in srgb, var(--bg-panel) 90%, transparent);
 }
 
 .left {
   display: flex;
   align-items: center;
-  gap: var(--sp-4);
+  gap: var(--sp-3);
   min-width: 0;
 }
 
@@ -24,7 +24,7 @@
   display: none;
   background: transparent;
   border: 1px solid var(--border-default);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-md);
   padding: 7px;
   flex-shrink: 0;
   transition: border-color var(--duration-fast) var(--ease-standard);
@@ -60,8 +60,10 @@
 
 .brand {
   font-weight: 700;
-  font-size: var(--fs-md);
-  letter-spacing: 0.06em;
+  font-size: var(--fs-lg);
+  letter-spacing: 0.02em;
+  color: var(--text-primary);
+  font-family: var(--font-display);
   flex-shrink: 0;
 }
 
@@ -71,9 +73,10 @@
   gap: var(--sp-2);
   font-size: var(--fs-xs);
   color: var(--state-green);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  font-family: var(--font-mono);
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: var(--state-green-dim);
+  letter-spacing: 0;
   white-space: nowrap;
 }
 
@@ -85,7 +88,7 @@
 }
 
 .clock {
-  font-family: var(--font-mono);
+  font-family: var(--font-ui);
   font-size: var(--fs-md);
   color: var(--text-primary);
   font-variant-numeric: tabular-nums;
@@ -97,9 +100,8 @@
   align-items: center;
   gap: var(--sp-2);
   font-size: var(--fs-xs);
-  font-family: var(--font-mono);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
+  font-family: var(--font-ui);
+  letter-spacing: 0;
   color: var(--text-secondary);
   white-space: nowrap;
 }

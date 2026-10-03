@@ -36,7 +36,7 @@ export function Security() {
   return (
     <div className={styles.page}>
       <div className={styles.header}>
-        <div className={styles.title}>Security</div>
+        <div className={styles.title}>Sécurité</div>
         <div className={styles.subtitle}>
           Événements du pipeline de vision (security-agent : détection YOLOv8, anti-spoofing, reconnaissance
           faciale ArcFace)

@@ -12,7 +12,10 @@ body,
 
 body {
   margin: 0;
-  background: var(--bg-app);
+  background:
+    radial-gradient(ellipse at 6% 0%, var(--wash-lavender), transparent 34rem),
+    radial-gradient(ellipse at 100% 16%, var(--wash-sage), transparent 32rem),
+    var(--bg-app);
   color: var(--text-primary);
   font-family: var(--font-ui);
   font-size: var(--fs-base);
@@ -53,6 +56,11 @@ textarea {
 
 a {
   color: var(--state-blue);
+}
+
+::selection {
+  color: var(--text-primary);
+  background: var(--selection-tint);
 }
 
 ::-webkit-scrollbar {

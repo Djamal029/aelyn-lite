@@ -46,7 +46,15 @@ export function System() {
         <Panel
           key={node.id}
           title={node.label}
-          meta={<span className={styles.uptime}>uptime {node.uptime}</span>}
+          meta={
+            <span className={styles.uptime}>
+              {node.state === "offline"
+                ? "Non déployé"
+                : node.id === "core" && !live
+                  ? "Mode démo — chiffres fictifs"
+                  : `En service depuis ${node.uptime}`}
+            </span>
+          }
         >
           <div className={styles.nodeHead}>
             <div>

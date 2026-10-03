@@ -1,70 +1,56 @@
 import { interpretCommand, type InterpretedCommand } from "./commandInterpreter";
-import { ApiError, getCareerOffers, getEmails, sendChatMessage, triggerMediaAction } from "./api";
+import { ApiError, sendChatMessage, triggerMediaAction } from "./api";
 import { isBackendLive } from "./backendStatus";
+import { LITE_MODE } from "./liteMode";
 
 /** Wraps the synchronous, regex-based classifier (commandInterpreter.ts)
  * with real execution against aelyn-api for the commands that now have
  * a genuine backend behind them:
- *  - verifier          -> GET /email (real unread mail)
- *  - chercher_offres   -> GET /career (real France Travail results)
- *  - media             -> POST /media/{action} (real TV control)
- *  - inconnu (free text, non-empty) -> POST /chat/message, which now
- *    runs the real ConversationalAgent pipeline (fast router,
- *    SYSTEM_INTENT routing, offer/mail reference resolution), not a bare
- *    LLM call, so a follow-up like "affiche les offres" correctly
- *    returns the same list rather than a generic reply. When its
- *    `result_type`/`results` are populated, they're carried straight
- *    through to `resultType`/`results` below.
+ *  - media   -> POST /media/{action} (real TV control)
+ *  - tout le reste de non vide (verifier, chercher_offres, triage,
+ *    rapport, valider, rejeter, inconnu/conversation libre) ->
+ *    POST /chat/message, qui exécute le vrai ConversationalAgent (fast
+ *    router, routage SYSTEM_INTENT, résolution de référence mail/offre).
  *
- * verifier et chercher_offres (avec un mot-clé explicite) gardent leur
- * appel direct (GET /email, GET /career) : plus rapide qu'un
- * aller-retour /chat/message, et `resultType`/`results` sont renseignés
- * directement pour que ChatMessage affiche un vrai tableau sans passer
- * par le LLM. Pour triage/rapport/valider/rejeter, et pour
- * chercher_offres SANS mot-clé (ex. "cherche des offres"/"affiche les
- * offres"), aucun GET dédié n'existe (GET /career sans mots_cles ne
- * reproduit pas le choix par défaut réel du profil, et surtout
- * n'alimente pas `_last_offers` de ConversationalAgent, le state que
- * /chat/message consulte pour un suivi comme "prépare un cv" ou
- * "cv" tout court) ; ConversationalAgent les traite déjà réellement via
- * /chat/message (même pipeline que "verifie mes mails"), donc on y route
- * ces commandes au lieu de garder le texte de démonstration local
- * d'commandInterpreter — un bug réel observé en direct : "cherche des
- * offres" (sans mot-clé) affichait le texte figé "6 offres trouvées..."
- * de commandInterpreter (jamais une vraie recherche), si bien qu'un
- * "cv" juste après échouait ("je ne sais pas de quelle offre tu
- * parles"), alors que le texte précédent prétendait avoir trouvé des
- * offres. Seul `camera` reste sans équivalent /chat/message côté lecture
- * vidéo. Si aelyn-api est injoignable, tout retombe sur le résultat
- * classifié localement comme avant. */
+ * verifier et chercher_offres (avec mot-clé) appelaient auparavant
+ * directement GET /email / GET /career, en contournant
+ * ConversationalAgent entièrement : plus rapide, mais DEUX bugs réels
+ * observés en direct par ce court-circuit. (1) GET /career n'a jamais
+ * reçu la limite demandée ("cherche 15 offres..." retombait toujours sur
+ * le défaut de 10 de l'endpoint, le nombre dans la phrase était juste
+ * ignoré) ; le filet de sécurité regex pour `limit`/`mots_cles`
+ * (cf. `_OFFERS_LIMIT_RE`/`_OFFERS_KEYWORDS_RE` côté agent) ne vit QUE
+ * dans `_dispatch_phrase`, jamais exécuté par ce court-circuit. (2) GET
+ * /email et GET /career n'alimentent ni `_last_mails` ni `_last_offers`
+ * sur l'agent conversationnel (état interne à `/chat/message` seul) :
+ * "vérifie mes mails" puis "résume-moi le mail de X" répondait "je ne
+ * sais pas de quel mail tu parles", et "cherche des offres..." puis
+ * "décris la première offre" retombait sur un `_last_offers` périmé
+ * d'une recherche précédente (ou déclenchait une nouvelle recherche),
+ * l'agent n'ayant simplement jamais vu la recherche faite via le
+ * court-circuit. `verifier` a par ailleurs son propre raccourci rapide
+ * côté `fast_router.py` (aucune latence LLM perdue en le routant par
+ * /chat/message) ; pour `chercher_offres`, le coût latence du LLM est
+ * accepté au profit d'une limite/mots-clés et d'un suivi de contexte
+ * enfin corrects. Seul `camera` reste sans équivalent /chat/message côté
+ * lecture vidéo. Si aelyn-api est injoignable, tout retombe sur le
+ * résultat classifié localement comme avant. */
 export async function resolveCommand(rawText: string): Promise<InterpretedCommand> {
   const base = interpretCommand(rawText);
+  if (LITE_MODE && base.command === "camera") {
+    return {
+      ...base,
+      command: "inconnu",
+      understood: "",
+      resultText: "Cette commande n'est pas disponible dans cette version.",
+      status: "error",
+      needsConfirmation: false,
+    };
+  }
   const live = await isBackendLive();
   if (!live) return base;
 
   try {
-    if (base.command === "verifier") {
-      const emails = await getEmails(5);
-      if (emails.length === 0) return { ...base, resultText: "Aucun mail non lu." };
-      return {
-        ...base,
-        resultText: `${emails.length} mail(s) non lu(s).`,
-        resultType: "mails",
-        results: emails,
-      };
-    }
-
-    if (base.command === "chercher_offres" && base.careerKeywords) {
-      const offers = await getCareerOffers({ motsCles: base.careerKeywords });
-      if (offers.length === 0) return { ...base, resultText: `Aucune offre trouvée pour « ${base.careerKeywords} ».` };
-      return {
-        ...base,
-        resultText: `${offers.length} offre(s) trouvée(s) pour « ${base.careerKeywords} ».`,
-        resultType: "offers",
-        results: offers,
-      };
-    }
-
     if (base.command === "media" && base.mediaAction) {
       await triggerMediaAction(base.mediaAction);
       return base;
@@ -72,32 +58,31 @@ export async function resolveCommand(rawText: string): Promise<InterpretedComman
 
     if (
       (base.command === "inconnu" ||
+        base.command === "verifier" ||
         base.command === "triage" ||
         base.command === "rapport" ||
         base.command === "valider" ||
         base.command === "rejeter" ||
-        (base.command === "chercher_offres" && !base.careerKeywords)) &&
+        base.command === "chercher_offres") &&
       rawText.trim()
     ) {
       const reply = await sendChatMessage(rawText.trim());
-      // `triage` renvoie `result_type: "mails"` côté backend (même forme
-      // que "vérifie mes mails" : la liste brute des mails lus), mais ici
-      // l'information utile (action proposée/urgence/justification par
-      // mail) vit UNIQUEMENT dans `reply.text` : ChatMessage, dès qu'un
-      // tableau est affiché, ne montre que la PREMIÈRE ligne du texte
-      // (cf. `hasTable` dans ChatMessage.tsx, pensé pour "X mails non
-      // lus" + tableau). Pour triage, afficher ce même tableau effacerait
-      // tout le détail du triage ; on ne transmet donc pas le tableau
-      // pour cette commande, seul le texte complet compte.
-      const forwardTable = base.command !== "triage";
+      // `triage` renvoie désormais `result_type: "mails"` avec, en plus
+      // des champs mail habituels, `action_proposee`/`urgence`/`resume`
+      // par mail (cf. `_mail_to_dict` côté agent) : ChatResultTable y
+      // ajoute une colonne "Action proposée" dédiée, donc le tableau est
+      // transmis pour TOUTES les commandes désormais, triage inclus
+      // (avant cette colonne, l'afficher aurait effacé le détail du
+      // triage, visible uniquement dans le texte prose ; ce n'est plus
+      // le cas).
       return {
         command: base.command,
         understood: base.command === "inconnu" ? "" : base.understood,
         resultText: reply.text,
         status: "done",
         needsConfirmation: false,
-        resultType: forwardTable ? (reply.result_type ?? undefined) : undefined,
-        results: forwardTable ? (reply.results ?? undefined) : undefined,
+        resultType: reply.result_type ?? undefined,
+        results: reply.results ?? undefined,
       };
     }
   } catch (err) {

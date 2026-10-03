@@ -11,6 +11,9 @@ export const VOICE_SCENARIOS = [
   "rapport de la journée",
 ] as const;
 
-export function pickScenario(): string {
-  return VOICE_SCENARIOS[Math.floor(Math.random() * VOICE_SCENARIOS.length)];
+export function pickScenario(liteMode = false): string {
+  const scenarios = liteMode
+    ? VOICE_SCENARIOS.filter((scenario) => !/camera|caméra|vision|visage|sécurité/i.test(scenario))
+    : VOICE_SCENARIOS;
+  return scenarios[Math.floor(Math.random() * scenarios.length)];
 }

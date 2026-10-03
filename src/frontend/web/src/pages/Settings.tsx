@@ -3,6 +3,8 @@ import { Panel } from "../components/ui/Panel";
 import { StatusDot } from "../components/ui/StatusDot";
 import { Badge } from "../components/ui/Badge";
 import { configGroups } from "../mocks/config";
+import { LITE_MODE } from "../lib/liteMode";
+import { getAelynTheme, setAelynTheme, THEME_OPTIONS, type AelynTheme } from "../lib/theme";
 import { verifyPasskey } from "../lib/passkey";
 import {
   ApiError,
@@ -69,6 +71,7 @@ function draftFromSettings(s: ApiSettings): EditableDraft {
  * backend (there's no offline-demo write path for those, unlike the
  * single legacy ALLOW_AUTONOMOUS_SEND toggle). */
 export function Settings() {
+  const [theme, setTheme] = useState<AelynTheme>(() => getAelynTheme());
   const [live, setLive] = useState(false);
   const [apiSettings, setApiSettings] = useState<ApiSettings | null>(null);
   const [editingDisabled, setEditingDisabled] = useState(false);
@@ -327,6 +330,32 @@ export function Settings() {
 
   return (
     <div className={styles.page}>
+      <Panel title="Apparence" meta={<span>Choix conservé sur cet appareil</span>}>
+        <p className={styles.themeHint}>Choisissez l’ambiance qui vous convient. Vous pourrez la changer à tout moment.</p>
+        <div className={styles.themeGrid} role="group" aria-label="Thème de l’application">
+          {THEME_OPTIONS.map((option) => (
+            <button
+              className={[styles.themeOption, theme === option.id ? styles.themeOptionSelected : ""].join(" ")}
+              key={option.id}
+              type="button"
+              aria-pressed={theme === option.id}
+              onClick={() => {
+                setAelynTheme(option.id);
+                setTheme(option.id);
+              }}
+            >
+              <span className={[styles.themeSwatch, styles[`swatch_${option.id}`]].join(" ")} aria-hidden="true">
+                <span />
+                <span />
+                <span />
+              </span>
+              <span className={styles.themeName}>{option.label}</span>
+              <span className={styles.themeNote}>{option.note}</span>
+            </button>
+          ))}
+        </div>
+      </Panel>
+
       <div className={styles.notice}>
         {live
           ? "Connecté à AELYN Core (aelyn-api) : les champs marqués LIVE viennent de GET /settings ; le reste reflète src/backend/.env.example (pas encore exposé par l'API)."
@@ -407,7 +436,7 @@ export function Settings() {
                 ) : null}
               </label>
 
-              <label className={styles.field}>
+              {!LITE_MODE ? <label className={styles.field}>
                 <span className={styles.fieldLabel}>CAMERA_ENTREE_INDEX</span>
                 <input
                   type="number"
@@ -420,9 +449,9 @@ export function Settings() {
                 {fieldErrors.camera_entree_index ? (
                   <span className={styles.fieldError}>{fieldErrors.camera_entree_index}</span>
                 ) : null}
-              </label>
+              </label> : null}
 
-              <label className={styles.field}>
+              {!LITE_MODE ? <label className={styles.field}>
                 <span className={styles.fieldLabel}>CAMERA_SALON_INDEX</span>
                 <input
                   type="number"
@@ -435,7 +464,7 @@ export function Settings() {
                 {fieldErrors.camera_salon_index ? (
                   <span className={styles.fieldError}>{fieldErrors.camera_salon_index}</span>
                 ) : null}
-              </label>
+              </label> : null}
 
               <label className={styles.field}>
                 <span className={styles.fieldLabel}>CANDIDATE_LEVEL</span>
@@ -488,7 +517,7 @@ export function Settings() {
                 {fieldErrors.weight_score_cos ? <span className={styles.fieldError}>{fieldErrors.weight_score_cos}</span> : null}
               </label>
 
-              <label className={styles.field}>
+              {!LITE_MODE ? <label className={styles.field}>
                 <span className={styles.fieldLabel}>FACE_MATCH_THRESHOLD</span>
                 <input
                   type="number"
@@ -504,7 +533,7 @@ export function Settings() {
                 {fieldErrors.face_match_threshold ? (
                   <span className={styles.fieldError}>{fieldErrors.face_match_threshold}</span>
                 ) : null}
-              </label>
+              </label> : null}
 
               <label className={[styles.field, styles.fieldWide].join(" ")}>
                 <span className={styles.fieldLabel}>KEYWORDS</span>
@@ -659,7 +688,10 @@ export function Settings() {
       ) : null}
 
       <div className={styles.grid}>
-        {configGroups.map((group) => (
+        {(LITE_MODE
+          ? configGroups.filter((group) => !/sécurité|security|face|vision|caméra/i.test(group.title + group.entries.map((entry) => entry.key).join(" ")))
+          : configGroups
+        ).map((group) => (
           <Panel title={group.title} key={group.title}>
             {group.entries.map((entry) => {
               if (entry.key === "ALLOW_AUTONOMOUS_SEND") {
@@ -703,7 +735,7 @@ export function Settings() {
           </Panel>
         ))}
 
-        {live && apiSettings ? (
+        {live && apiSettings && !LITE_MODE ? (
           <Panel title="Caméras locales (aelyn-api)">
             <div className={styles.row}>
               <span className={styles.key}>

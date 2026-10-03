@@ -1,69 +1,49 @@
-/*
- * Design tokens: AELYN control console.
- *
- * Direction: "soft dark", a calm, daily-use console, not a raw
- * terminal/NOC wall. Color still communicates STATE, never decoration:
- *   neutral = information / idle
- *   green   = operational
- *   amber   = warning
- *   red     = critical
- *   blue    = active / selected
- * But state colors are muted/desaturated rather than neon-on-black,
- * surfaces are navy-tinted rather than near-black, corners are rounded
- * enough to feel like a considered product, and panels separate from
- * each other with a soft shadow + lightness step rather than a hairline
- * border alone. Still no gradients, no glass/blur.
- *
- * HUD accents (a real Iron-Man-style instrument-panel language, not a
- * generic "futuristic dashboard" skin): thin glowing lines and radial
- * gauges built entirely on the existing blue "active" color above, never
- * a new accent color. The glow is a soft, low-opacity bloom reserved for
- * things that are genuinely active/selected/focused or for the voice
- * orb's own instrument face, not a decorative halo on static content.
- * See --glow-blue-sm/--glow-blue-md below.
- */
+/* Soft, warm AELYN surfaces with a quiet periwinkle assistant accent. */
 
 :root {
-  /* ---- surfaces (soft dark navy, never near-black) ------------------ */
-  --bg-app: #0f1420;
-  --bg-panel: #161d2e;
-  --bg-panel-raised: #1c2438;
-  --bg-inset: #10141f;
-  --bg-hover: #202942;
-  --bg-selected: #22304d;
-  /* A warm-neutral surface used only to distinguish the user's own chat
-   * turn from AELYN's (ChatMessage.module.css), deliberately NOT a
-   * state color (no alert/notification meaning), just a different hue
-   * family from the app's cool navy so two speakers in the same thread
-   * read as genuinely different without either side looking selected
-   * or flagged. */
-  --bg-warm: #241f1b;
-  --border-warm: rgba(255, 244, 230, 0.08);
+  color-scheme: light;
 
-  --border-subtle: rgba(255, 255, 255, 0.06);
-  --border-default: rgba(255, 255, 255, 0.1);
-  --border-strong: rgba(255, 255, 255, 0.18);
+  /* ---- warm paper, porcelain and soft botanical tint ---------------- */
+  --bg-app: #f6f5f0;
+  --bg-panel: #fffefa;
+  --bg-panel-raised: #ffffff;
+  --bg-inset: #f1f0e9;
+  --bg-hover: #efeee8;
+  --bg-selected: #eeedf8;
+  --bg-warm: #f4eee8;
+  --border-warm: #ebe2d8;
 
-  /* ---- text --------------------------------------------------------*/
-  --text-primary: #e9ebf2;
-  --text-secondary: #a3acc0;
-  --text-muted: #737d95;
-  --text-disabled: #4d5568;
+  --border-subtle: #ecebe5;
+  --border-default: #dfdfd7;
+  --border-strong: #c9cbc2;
 
-  /* ---- state colors: muted, not neon ---------------------------------*/
-  --state-neutral: #9aa3b8;
-  --state-neutral-dim: #5c6478;
-  --state-green: #6bbf94;
-  --state-green-dim: #24382f;
-  --state-amber: #d7a563;
-  --state-amber-dim: #3d3122;
-  --state-red: #dd8080;
-  --state-red-dim: #3d2729;
-  --state-blue: #7fa1e3;
-  --state-blue-dim: #232f4c;
+  /* ---- readable ink and muted status colors -------------------------- */
+  --text-primary: #292d2a;
+  --text-secondary: #626961;
+  --text-muted: #858b82;
+  --text-disabled: #afb3ab;
 
-  /* ---- typography ----------------------------------------------------*/
+  --state-neutral: #778078;
+  --state-neutral-dim: #e9ebe5;
+  --state-green: #64866f;
+  --state-green-dim: #e8f0e8;
+  --state-amber: #ad7943;
+  --state-amber-dim: #f5ede1;
+  --state-red: #b96e68;
+  --state-red-dim: #f6e9e7;
+  --state-blue: #777fc1;
+  --state-blue-dim: #eeedf8;
+  --wash-lavender: rgba(231, 226, 243, 0.46);
+  --wash-sage: rgba(231, 237, 224, 0.38);
+  --border-accent-soft: rgba(119, 127, 193, 0.16);
+  --surface-accent-glass: rgba(119, 127, 193, 0.12);
+  --selection-tint: rgba(119, 127, 193, 0.2);
+  --shadow-accent: 0 10px 30px -20px rgba(119, 127, 193, 0.6);
+  --shadow-command: 0 -12px 24px -18px rgba(44, 48, 40, 0.24);
+
+  /* ---- typography --------------------------------------------------- */
   --font-ui: -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-display: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Georgia, serif;
   --font-mono: ui-monospace, "Cascadia Mono", "Consolas", "SFMono-Regular", Menlo, monospace;
 
   --fs-xs: 11px;
@@ -76,7 +56,7 @@
   --lh-tight: 1.25;
   --lh-normal: 1.55;
 
-  /* ---- spacing scale: a bit more generous throughout ------------------*/
+  /* ---- spacing ------------------------------------------------------ */
   --sp-1: 4px;
   --sp-2: 8px;
   --sp-3: 14px;
@@ -86,37 +66,138 @@
   --sp-8: 36px;
 
   /* ---- misc ----------------------------------------------------------*/
-  --radius-sm: 8px;
-  --radius-md: 12px;
-  --radius-lg: 18px;
+  --radius-sm: 10px;
+  --radius-md: 16px;
+  --radius-lg: 22px;
   --topbar-height: 56px;
   --sidebar-width: 208px;
   --commandbar-height: 96px;
 
-  /* Gentle elevation: soft shadow + a hairline border for edge
-   * definition, not a hard cast shadow. This is what separates panels
-   * from the app background and from each other instead of relying on
-   * borders alone. */
-  --shadow-panel: 0 1px 2px rgba(4, 6, 12, 0.4), 0 8px 24px -12px rgba(4, 6, 12, 0.55);
-  --shadow-raised: 0 2px 4px rgba(4, 6, 12, 0.45), 0 16px 36px -16px rgba(4, 6, 12, 0.6);
+  --shadow-panel: 0 2px 6px rgba(44, 48, 40, 0.035), 0 14px 34px -22px rgba(44, 48, 40, 0.2);
+  --shadow-raised: 0 8px 20px -14px rgba(44, 48, 40, 0.2), 0 24px 54px -34px rgba(44, 48, 40, 0.23);
   --elevate-border: var(--border-subtle);
 
-  /* ---- motion: calm and instant-feeling, never bouncy --------------- */
-  /* One shared easing curve (a gentle deceleration, no overshoot) and a
-   * short duration scale so every transition/animation in the app reads
-   * as one consistent, considered system instead of a pile of one-off
-   * timings. Used for state transitions (content appearing/changing) and
-   * micro-interactions (hover/press), never for decorative motion on
-   * things that don't actually change. */
   --ease-standard: cubic-bezier(0.2, 0, 0, 1);
   --duration-fast: 120ms;
   --duration-base: 180ms;
   --duration-slow: 240ms;
 
-  /* ---- HUD glow: same blue as --state-blue, never a new color -------- */
-  --glow-blue-sm: 0 0 5px rgba(127, 161, 227, 0.5);
-  --glow-blue-md: 0 0 10px rgba(127, 161, 227, 0.5), 0 0 3px rgba(127, 161, 227, 0.65);
-  --glow-green-md: 0 0 10px rgba(107, 191, 148, 0.5), 0 0 3px rgba(107, 191, 148, 0.65);
+  --glow-blue-sm: 0 0 0 3px rgba(119, 127, 193, 0.12);
+  --glow-blue-md: 0 0 0 4px rgba(119, 127, 193, 0.13), 0 8px 24px -14px rgba(119, 127, 193, 0.45);
+  --glow-green-md: 0 0 0 4px rgba(100, 134, 111, 0.12), 0 8px 24px -14px rgba(100, 134, 111, 0.4);
+}
+
+:root[data-theme="lavande"] {
+  --bg-app: #f5f2fa;
+  --bg-panel: #fffdfd;
+  --bg-panel-raised: #ffffff;
+  --bg-inset: #f0edf6;
+  --bg-hover: #ece7f3;
+  --bg-selected: #ebe5f5;
+  --bg-warm: #f5eef0;
+  --border-warm: #ebdfe5;
+  --border-subtle: #ebe6f0;
+  --border-default: #dcd5e4;
+  --border-strong: #c5bbd1;
+  --text-primary: #302b37;
+  --text-secondary: #665e70;
+  --text-muted: #888091;
+  --state-blue: #806dae;
+  --state-blue-dim: #eee8f7;
+  --wash-lavender: rgba(220, 207, 238, 0.44);
+  --wash-sage: rgba(229, 233, 224, 0.28);
+  --border-accent-soft: rgba(128, 109, 174, 0.18);
+  --surface-accent-glass: rgba(128, 109, 174, 0.13);
+  --selection-tint: rgba(128, 109, 174, 0.2);
+  --shadow-accent: 0 10px 30px -20px rgba(128, 109, 174, 0.55);
+}
+
+:root[data-theme="sauge"] {
+  --bg-app: #f1f5ef;
+  --bg-panel: #fcfef9;
+  --bg-panel-raised: #ffffff;
+  --bg-inset: #edf2ea;
+  --bg-hover: #e7eee4;
+  --bg-selected: #e3eee2;
+  --bg-warm: #f4f0e8;
+  --border-warm: #e8e1d4;
+  --border-subtle: #e5ebe1;
+  --border-default: #d5dfd1;
+  --border-strong: #bdcbb9;
+  --text-primary: #29322b;
+  --text-secondary: #5c6a5f;
+  --text-muted: #808b80;
+  --state-blue: #648574;
+  --state-blue-dim: #e5efe5;
+  --state-green: #64866f;
+  --wash-lavender: rgba(225, 226, 239, 0.3);
+  --wash-sage: rgba(211, 229, 205, 0.48);
+  --border-accent-soft: rgba(100, 133, 116, 0.18);
+  --surface-accent-glass: rgba(100, 133, 116, 0.13);
+  --selection-tint: rgba(100, 133, 116, 0.2);
+  --shadow-accent: 0 10px 30px -20px rgba(100, 133, 116, 0.5);
+}
+
+:root[data-theme="sable"] {
+  --bg-app: #f7f2eb;
+  --bg-panel: #fffdf8;
+  --bg-panel-raised: #ffffff;
+  --bg-inset: #f2ece3;
+  --bg-hover: #eee6db;
+  --bg-selected: #f0e4d8;
+  --bg-warm: #f5ebe2;
+  --border-warm: #ebdbce;
+  --border-subtle: #ece5db;
+  --border-default: #ded3c5;
+  --border-strong: #c8b8a6;
+  --text-primary: #332d28;
+  --text-secondary: #6b5f55;
+  --text-muted: #8c8075;
+  --state-blue: #a96e4a;
+  --state-blue-dim: #f4e9df;
+  --state-amber: #a96e4a;
+  --wash-lavender: rgba(232, 220, 235, 0.3);
+  --wash-sage: rgba(239, 224, 204, 0.5);
+  --border-accent-soft: rgba(169, 110, 74, 0.18);
+  --surface-accent-glass: rgba(169, 110, 74, 0.13);
+  --selection-tint: rgba(169, 110, 74, 0.2);
+  --shadow-accent: 0 10px 30px -20px rgba(169, 110, 74, 0.5);
+}
+
+:root[data-theme="nuit"] {
+  color-scheme: dark;
+  --bg-app: #151a23;
+  --bg-panel: #1d2430;
+  --bg-panel-raised: #252e3c;
+  --bg-inset: #171d27;
+  --bg-hover: #2b3545;
+  --bg-selected: #303b51;
+  --bg-warm: #29241f;
+  --border-warm: rgba(255, 244, 230, 0.1);
+  --border-subtle: rgba(255, 255, 255, 0.08);
+  --border-default: rgba(255, 255, 255, 0.13);
+  --border-strong: rgba(255, 255, 255, 0.22);
+  --text-primary: #eef0f5;
+  --text-secondary: #b1b9c7;
+  --text-muted: #8490a1;
+  --text-disabled: #626d7c;
+  --state-neutral: #aab4c3;
+  --state-neutral-dim: #394454;
+  --state-green: #81c19a;
+  --state-green-dim: #2a4035;
+  --state-amber: #e0b16f;
+  --state-amber-dim: #433725;
+  --state-red: #e28e8a;
+  --state-red-dim: #472c31;
+  --state-blue: #a2afe9;
+  --state-blue-dim: #343c5b;
+  --wash-lavender: rgba(110, 107, 156, 0.16);
+  --wash-sage: rgba(94, 126, 103, 0.12);
+  --border-accent-soft: rgba(162, 175, 233, 0.2);
+  --surface-accent-glass: rgba(162, 175, 233, 0.14);
+  --selection-tint: rgba(162, 175, 233, 0.24);
+  --shadow-panel: 0 1px 2px rgba(4, 6, 12, 0.35), 0 12px 30px -20px rgba(4, 6, 12, 0.55);
+  --shadow-raised: 0 8px 24px -16px rgba(4, 6, 12, 0.6), 0 24px 52px -32px rgba(4, 6, 12, 0.7);
 }
 
 /* Compact tablet / small-desktop tuning: the app is intentionally a

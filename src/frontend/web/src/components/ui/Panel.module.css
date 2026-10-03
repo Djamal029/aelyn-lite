@@ -2,7 +2,7 @@
   position: relative;
   background: var(--bg-panel);
   border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-lg);
   box-shadow: var(--shadow-panel);
   display: flex;
   flex-direction: column;
@@ -26,44 +26,20 @@
      fixe) ; le panneau lui-même n'a jamais besoin de rétrécir. */
 }
 
-/* A barely-there HUD "readout" texture: extremely faint horizontal
- * scanlines, texture rather than decoration. Sits behind the header/body
- * content (z-index: -1 within this panel's own stacking context, which
- * `position: relative` above establishes) so it never competes with
- * actual text. Kept this subtle on purpose; if it ever reads as noise
- * rather than texture, delete this block rather than tone it down
- * further. */
-.panel::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  border-radius: inherit;
-  pointer-events: none;
-  background-image: repeating-linear-gradient(
-    0deg,
-    rgba(127, 161, 227, 0.025) 0px,
-    rgba(127, 161, 227, 0.025) 1px,
-    transparent 1px,
-    transparent 3px
-  );
-}
-
 .header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: var(--sp-3) var(--sp-4);
-  border-bottom: 1px solid var(--border-subtle);
+  padding: var(--sp-4) var(--sp-5) var(--sp-3);
   flex-shrink: 0;
 }
 
 .title {
-  font-size: var(--fs-xs);
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--text-secondary);
+  font-size: var(--fs-md);
+  font-weight: 650;
+  letter-spacing: -0.015em;
+  text-transform: none;
+  color: var(--text-primary);
 }
 
 .meta {
@@ -75,7 +51,7 @@
 }
 
 .body {
-  padding: var(--sp-4);
+  padding: var(--sp-3) var(--sp-5) var(--sp-5);
   flex: 1;
 }
 

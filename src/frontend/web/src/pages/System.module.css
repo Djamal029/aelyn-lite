@@ -18,7 +18,7 @@
   align-items: center;
   gap: var(--sp-2);
   font-size: var(--fs-md);
-  font-weight: 600;
+  font-weight: 650;
 }
 
 .role {
@@ -28,7 +28,7 @@
 }
 
 .uptime {
-  font-family: var(--font-mono);
+  font-family: var(--font-ui);
   font-size: var(--fs-xs);
   color: var(--text-muted);
 }
@@ -48,7 +48,7 @@
 }
 
 .serviceName {
-  font-family: var(--font-mono);
+  font-family: var(--font-ui);
 }
 
 .serviceDetail {

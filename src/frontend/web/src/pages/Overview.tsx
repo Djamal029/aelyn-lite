@@ -18,12 +18,20 @@ const otherNodes = nodes.filter((n) => n.id !== "core" && !(LITE_MODE && n.id.st
 
 export function Overview() {
   const navigate = useNavigate();
-  const { core, networkTotal } = useCoreNode();
+  const { core, networkTotal, live, gpu } = useCoreNode();
 
   const metricItems: MetricItem[] = [
     { label: "CPU", value: `${core.cpuPercent}%`, state: thresholdState(core.cpuPercent, 70, 90), gauge: { value: core.cpuPercent, max: 100 } },
     { label: "RAM", value: `${core.ramPercent}%`, state: thresholdState(core.ramPercent, 75, 90), gauge: { value: core.ramPercent, max: 100 } },
   ];
+  if (gpu) {
+    metricItems.push({
+      label: "GPU",
+      value: `${Math.round(gpu.utilization_percent)}%`,
+      state: thresholdState(gpu.utilization_percent, 70, 90),
+      gauge: { value: gpu.utilization_percent, max: 100 },
+    });
+  }
   // Honest, not a placeholder: when GET /system/status says there's no
   // reliable CPU temperature reading on this machine (the common case on
   // Windows without third-party sensor software), the gauge is dropped
@@ -50,15 +58,31 @@ export function Overview() {
   return (
     <div className={styles.page}>
       <div className={styles.grid}>
+        <header className={styles.welcome}>
+          <div>
+            <div className={styles.eyebrow}>AELYN · ESPACE PERSONNEL</div>
+            <h1 className={styles.welcomeTitle}>Votre espace, en un coup d’œil</h1>
+            <p className={styles.welcomeText}>Un regard calme sur votre système et vos activités.</p>
+          </div>
+          <div className={styles.welcomeMark} aria-hidden="true">
+            <span />
+          </div>
+        </header>
         <Panel
           title="Système"
+          className={styles.systemPanel}
           meta={
             <span>
-              {core.label} · {core.uptime}
+              {core.label} · {core.uptime} · {live ? "mesures réelles" : "mode démo — chiffres fictifs"}
             </span>
           }
         >
           <MetricRow items={metricItems} />
+          {gpu ? (
+            <div className={styles.systemNote}>
+              {gpu.name} · {gpu.temperature_celsius}°C · VRAM {Math.round(gpu.memory_used_mb)} / {Math.round(gpu.memory_total_mb)} Mo
+            </div>
+          ) : null}
           <div className={styles.nodeSummary} style={{ marginTop: 12 }}>
             {otherNodes.map((n) => (
               <div className={styles.nodeLine} key={n.id}>
@@ -77,8 +101,9 @@ export function Overview() {
           </div>
         )}
 
-        <Panel
+        {!LITE_MODE ? <Panel
           title="Événements sécurité"
+          className={styles.columnPanel}
           meta={
             <a className={styles.link} onClick={() => navigate("/security")} href="#security">
               Tout voir →
@@ -87,10 +112,11 @@ export function Overview() {
           noPad
         >
           <EventsTable events={securityEvents} limit={5} />
-        </Panel>
+        </Panel> : null}
 
         <Panel
           title="Activité AELYN"
+          className={LITE_MODE ? styles.fullPanel : styles.columnPanel}
           meta={
             <a className={styles.link} onClick={() => navigate("/activity")} href="#activity">
               Journal complet →

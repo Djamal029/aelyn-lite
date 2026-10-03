@@ -3,6 +3,7 @@ import { VoiceOrb, type VoiceState } from "./VoiceOrb";
 import type { InterpretedCommand } from "../../lib/commandInterpreter";
 import { resolveCommand } from "../../lib/commandResolver";
 import { pickScenario } from "../../lib/voiceDemo";
+import { LITE_MODE } from "../../lib/liteMode";
 import { useSpeechRecognition } from "../../lib/useSpeechRecognition";
 import { useSpeechSynthesis } from "../../lib/useSpeechSynthesis";
 import styles from "./VoicePanel.module.css";
@@ -199,7 +200,7 @@ export function VoicePanel({ onClose, onComplete }: VoicePanelProps) {
     setState("ecoute");
     startAmplitude();
 
-    const scenario = pickScenario();
+    const scenario = pickScenario(LITE_MODE);
     const words = scenario.split(" ");
     words.forEach((_, i) => {
       timers.current.push(

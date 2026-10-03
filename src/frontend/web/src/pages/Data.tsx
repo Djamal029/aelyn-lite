@@ -1,82 +1,182 @@
+import { useEffect, useState } from "react";
+import { ApiError, getSystemResources, type SystemResources } from "../lib/api";
 import { Panel } from "../components/ui/Panel";
-import { Sparkline } from "../components/ui/Sparkline";
 import { RadialGauge } from "../components/ui/RadialGauge";
-import { BarHistogram } from "../components/ui/BarHistogram";
-import { resourceTrends, detectionFrequency, commandStats, cameraUptimeStats } from "../mocks";
+import { Sparkline } from "../components/ui/Sparkline";
+import type { TimeSeriesPoint } from "../types";
 import styles from "./Data.module.css";
 
-const trend = resourceTrends[0];
-const maxCommandCount = Math.max(...commandStats.map((c) => c.count));
-const lastCpu = trend.cpu[trend.cpu.length - 1].v;
-const lastRam = trend.ram[trend.ram.length - 1].v;
-const lastTempC = trend.tempC[trend.tempC.length - 1].v;
+const REFRESH_MS = 15_000;
+const MAX_SAMPLES = 48;
+
+interface ResourceSample {
+  time: string;
+  cpu: number;
+  ram: number;
+  gpu?: number;
+}
+
+function formatMemory(mb: number): string {
+  if (mb < 1024) return `${Math.round(mb)} Mo`;
+  return `${(mb / 1024).toFixed(1)} Go`;
+}
+
+function formatNetwork(bytes: number): string {
+  if (bytes < 1_000_000) return `${(bytes / 1_000).toFixed(0)} Ko`;
+  if (bytes < 1_000_000_000) return `${(bytes / 1_000_000).toFixed(1)} Mo`;
+  return `${(bytes / 1_000_000_000).toFixed(2)} Go`;
+}
+
+function chartPoints(samples: ResourceSample[], key: "cpu" | "ram" | "gpu"): TimeSeriesPoint[] {
+  return samples.flatMap((sample) => {
+    const value = sample[key];
+    return typeof value === "number" ? [{ t: sample.time, v: value }] : [];
+  });
+}
 
 export function Data() {
+  const [resources, setResources] = useState<SystemResources | null>(null);
+  const [samples, setSamples] = useState<ResourceSample[]>([]);
+  const [updatedAt, setUpdatedAt] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    let refreshing = false;
+
+    const refresh = async () => {
+      if (refreshing) return;
+      refreshing = true;
+      try {
+        const latest = await getSystemResources();
+        if (cancelled) return;
+        const now = new Date();
+        setResources(latest);
+        setUpdatedAt(now.toLocaleTimeString("fr-FR"));
+        setSamples((previous) => [
+          ...previous,
+          {
+            time: now.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" }),
+            cpu: latest.cpu_percent,
+            ram: latest.ram.percent,
+            ...(latest.gpu.available ? { gpu: latest.gpu.utilization_percent } : {}),
+          },
+        ].slice(-MAX_SAMPLES));
+        setError(null);
+      } catch (err) {
+        if (!cancelled) {
+          setError(err instanceof ApiError ? err.message : "Mesures système indisponibles.");
+        }
+      } finally {
+        refreshing = false;
+        if (!cancelled) setLoading(false);
+      }
+    };
+
+    void refresh();
+    const timer = window.setInterval(() => void refresh(), REFRESH_MS);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, []);
+
+  const cpuTrend = chartPoints(samples, "cpu");
+  const ramTrend = chartPoints(samples, "ram");
+  const gpuTrend = chartPoints(samples, "gpu");
+
   return (
     <div className={styles.page}>
-      <Panel title="Tendances système, AELYN Core (24 h)" className={styles.wide}>
-        <div className={styles.trends}>
-          <div className={styles.trendCol}>
-            <RadialGauge label="CPU" percent={lastCpu} displayValue={`${lastCpu}%`} color="var(--state-blue)" size={64} />
-            <Sparkline data={trend.cpu} unit="%" color="var(--state-blue)" max={100} />
-          </div>
-          <div className={styles.trendCol}>
-            <RadialGauge label="RAM" percent={lastRam} displayValue={`${lastRam}%`} color="var(--state-green)" size={64} />
-            <Sparkline data={trend.ram} unit="%" color="var(--state-green)" max={100} />
-          </div>
-          <div className={styles.trendCol}>
-            <RadialGauge
-              label="Température"
-              percent={lastTempC}
-              displayValue={`${lastTempC}°C`}
-              color="var(--state-amber)"
-              size={64}
-            />
-            <Sparkline data={trend.tempC} unit="°C" color="var(--state-amber)" />
-          </div>
+      <header className={styles.heading}>
+        <div>
+          <div className={styles.eyebrow}>MESURES LOCALES</div>
+          <h1 className={styles.title}>Données système</h1>
+          <p className={styles.subtitle}>Des mesures réelles, actualisées pendant votre visite.</p>
         </div>
-      </Panel>
-
-      <Panel title="Fréquence de détection (24 h, toutes caméras)" className={styles.wide}>
-        <BarHistogram data={detectionFrequency.map((d) => ({ label: d.hour, value: d.count }))} />
-      </Panel>
-
-      <Panel title="Commandes exécutées (7 derniers jours)">
-        {commandStats.map((c) => (
-          <div className={styles.barRow} key={c.command}>
-            <span className={styles.barLabel}>{c.label}</span>
-            <span className={styles.barTrack}>
-              <span className={styles.barFill} style={{ width: `${(c.count / maxCommandCount) * 100}%` }} />
-            </span>
-            <span className={styles.barCount}>{c.count}</span>
-          </div>
-        ))}
-      </Panel>
-
-      <Panel title="Disponibilité caméras (7 derniers jours)" noPad>
-        <div className={styles.tableScroll}>
-          <table className={styles.statTable}>
-            <thead>
-              <tr>
-                <th>Caméra</th>
-                <th>Disponibilité</th>
-                <th>Détections (24 h)</th>
-                <th>Latence moy.</th>
-              </tr>
-            </thead>
-            <tbody>
-              {cameraUptimeStats.map((c) => (
-                <tr key={c.camera}>
-                  <td>{c.camera}</td>
-                  <td>{c.uptimePercent}%</td>
-                  <td>{c.detections24h}</td>
-                  <td>{c.avgLatencyMs > 0 ? `${c.avgLatencyMs} ms` : "N/A"}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className={styles.refreshStatus} role="status" aria-live="polite">
+          <span className={[styles.liveDot, resources ? styles.live : ""].join(" ")} />
+          {resources ? `Actualisé à ${updatedAt}` : loading ? "Connexion aux mesures…" : "Mesures indisponibles"}
         </div>
-      </Panel>
+      </header>
+
+      {resources ? (
+        <>
+          <Panel title="Ressources de cette machine" className={styles.wide}>
+            <div className={styles.metrics}>
+              <div className={styles.metric}>
+                <RadialGauge label="CPU" percent={resources.cpu_percent} displayValue={`${Math.round(resources.cpu_percent)}%`} size={68} />
+                <span className={styles.metricNote}>Processeur</span>
+              </div>
+              <div className={styles.metric}>
+                <RadialGauge label="RAM" percent={resources.ram.percent} displayValue={`${Math.round(resources.ram.percent)}%`} color="var(--state-green)" size={68} />
+                <span className={styles.metricNote}>
+                  {formatMemory(resources.ram.used_mb)} sur {formatMemory(resources.ram.total_mb)}
+                </span>
+              </div>
+              <div className={styles.metric}>
+                <RadialGauge label="Disque" percent={resources.disk.percent} displayValue={`${Math.round(resources.disk.percent)}%`} color="var(--state-amber)" size={68} />
+                <span className={styles.metricNote}>
+                  {resources.disk.used_gb.toFixed(1)} Go sur {resources.disk.total_gb.toFixed(1)} Go
+                </span>
+              </div>
+              {resources.gpu.available ? (
+                <div className={styles.metric}>
+                  <RadialGauge label="GPU" percent={resources.gpu.utilization_percent} displayValue={`${Math.round(resources.gpu.utilization_percent)}%`} color="var(--state-blue)" size={68} />
+                  <span className={styles.metricNote}>{resources.gpu.name}</span>
+                  <span className={styles.metricDetail}>
+                    {resources.gpu.temperature_celsius}°C · VRAM {formatMemory(resources.gpu.memory_used_mb)} / {formatMemory(resources.gpu.memory_total_mb)}
+                  </span>
+                </div>
+              ) : null}
+            </div>
+            <div className={styles.measurementNote}>
+              <span>
+                {resources.cpu_temp_celsius.available
+                  ? `Température CPU : ${resources.cpu_temp_celsius.value}°C`
+                  : "Température CPU non fournie par cette machine."}
+              </span>
+              <span>
+                Réseau cumulé depuis le démarrage : {formatNetwork(resources.network.bytes_sent + resources.network.bytes_recv)}.
+              </span>
+            </div>
+          </Panel>
+
+          <Panel
+            title="Évolution pendant cette visite"
+            className={styles.wide}
+            meta={<span>{samples.length} relevé(s) · actualisation toutes les 15 secondes</span>}
+          >
+            {samples.length < 2 ? (
+              <p className={styles.waiting}>La courbe se dessinera après le prochain relevé réel.</p>
+            ) : (
+              <div className={styles.trends}>
+                <div className={styles.trend}>
+                  <span className={styles.trendLabel}>Processeur</span>
+                  <Sparkline data={cpuTrend} unit="%" color="var(--state-blue)" max={100} />
+                </div>
+                <div className={styles.trend}>
+                  <span className={styles.trendLabel}>Mémoire vive</span>
+                  <Sparkline data={ramTrend} unit="%" color="var(--state-green)" max={100} />
+                </div>
+                {resources.gpu.available ? (
+                  <div className={styles.trend}>
+                    <span className={styles.trendLabel}>Carte graphique</span>
+                    <Sparkline data={gpuTrend} unit="%" color="var(--state-blue)" max={100} />
+                  </div>
+                ) : null}
+              </div>
+            )}
+          </Panel>
+        </>
+      ) : (
+        <Panel title="Aucune mesure disponible" className={styles.wide}>
+          <p className={styles.emptyState}>
+            {error ?? "La connexion au service de mesures est en cours."}
+          </p>
+          <p className={styles.metricNote}>Démarrez AELYN Core pour afficher les relevés réels de cette machine.</p>
+        </Panel>
+      )}
     </div>
   );
 }

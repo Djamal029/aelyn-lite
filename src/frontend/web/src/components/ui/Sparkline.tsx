@@ -34,7 +34,14 @@ export function Sparkline({ data, width = 240, height = 48, color = "var(--state
 
   return (
     <div>
-      <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} role="img" aria-label={`Tendance de ${first.t} à ${last.t}`}>
+      <svg
+        width="100%"
+        height={height}
+        viewBox={`0 0 ${width} ${height}`}
+        role="img"
+        aria-label={`Tendance de ${first.t} à ${last.t}`}
+        style={{ display: "block", maxWidth: "100%" }}
+      >
         <path d={areaPath} fill={color} opacity={0.08} stroke="none" />
         <path d={linePath} fill="none" stroke={color} strokeWidth={1.5} />
       </svg>

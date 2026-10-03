@@ -30,7 +30,7 @@ export function TopBar({ onMenuClick }: TopBarProps) {
         <span className={styles.brand}>AELYN</span>
         <span className={styles.status}>
           <StatusDot kind={core.state === "operational" ? "operational" : "offline"} />
-          {core.state === "operational" ? "System online" : "System offline"}
+          {core.state === "operational" ? "En ligne" : "Hors ligne"}
         </span>
       </div>
       <div className={styles.right}>

@@ -309,3 +309,115 @@
 .profileError {
   white-space: pre-wrap;
 }
+
+.themeHint {
+  margin-bottom: var(--sp-3);
+  color: var(--text-secondary);
+  font-size: var(--fs-sm);
+}
+
+.themeGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr));
+  gap: var(--sp-2);
+}
+
+.themeOption {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--sp-1);
+  padding: var(--sp-2);
+  text-align: left;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--bg-panel-raised);
+  transition: border-color var(--duration-fast) var(--ease-standard), box-shadow var(--duration-fast) var(--ease-standard);
+}
+
+.themeOption:hover,
+.themeOptionSelected {
+  border-color: var(--state-blue);
+  box-shadow: var(--glow-blue-sm);
+}
+
+.themeSwatch {
+  width: 100%;
+  height: 38px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 7px;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--swatch-ink) 14%, transparent);
+  border-radius: var(--radius-sm);
+  background: var(--swatch-background);
+}
+
+.themeSwatch span {
+  width: 22px;
+  height: 22px;
+  border: 1px solid color-mix(in srgb, var(--swatch-ink) 12%, transparent);
+  border-radius: 50%;
+  background: var(--swatch-surface);
+}
+
+.themeSwatch span:nth-child(2) {
+  background: var(--swatch-accent);
+}
+
+.themeSwatch span:nth-child(3) {
+  background: var(--swatch-state);
+}
+
+.swatch_porcelaine {
+  --swatch-background: #f6f5f0;
+  --swatch-surface: #fffefa;
+  --swatch-accent: #777fc1;
+  --swatch-state: #64866f;
+  --swatch-ink: #292d2a;
+}
+
+.swatch_lavande {
+  --swatch-background: #f5f2fa;
+  --swatch-surface: #fffdfd;
+  --swatch-accent: #806dae;
+  --swatch-state: #6f9679;
+  --swatch-ink: #302b37;
+}
+
+.swatch_sauge {
+  --swatch-background: #f1f5ef;
+  --swatch-surface: #fcfef9;
+  --swatch-accent: #648574;
+  --swatch-state: #64866f;
+  --swatch-ink: #29322b;
+}
+
+.swatch_sable {
+  --swatch-background: #f7f2eb;
+  --swatch-surface: #fffdf8;
+  --swatch-accent: #a96e4a;
+  --swatch-state: #758a70;
+  --swatch-ink: #332d28;
+}
+
+.swatch_nuit {
+  --swatch-background: #151a23;
+  --swatch-surface: #252e3c;
+  --swatch-accent: #a2afe9;
+  --swatch-state: #81c19a;
+  --swatch-ink: #eef0f5;
+}
+
+.themeName {
+  color: var(--text-primary);
+  font-size: var(--fs-sm);
+  font-weight: 650;
+}
+
+.themeNote {
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
+}
