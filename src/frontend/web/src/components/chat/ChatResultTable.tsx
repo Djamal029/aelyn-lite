@@ -99,6 +99,7 @@ export function ChatResultTable({ resultType, results }: ChatResultTableProps) {
         <table className={styles.table}>
           <thead>
             <tr>
+              {hasActions ? <th>#</th> : null}
               <th>Expéditeur</th>
               <th>Objet</th>
               <th>Date</th>
@@ -108,6 +109,13 @@ export function ChatResultTable({ resultType, results }: ChatResultTableProps) {
           <tbody>
             {mails.map((m) => (
               <tr key={m.uid}>
+                {/* Numéro affiché tel quel : c'est ce qu'il faut dire pour
+                 * agir dessus ("valide l'action 265"), aucun autre moyen
+                 * fiable de désigner une proposition précise par la voix/le
+                 * texte (une recherche par expéditeur/sujet ne peut pas se
+                 * résoudre côté client, l'historique des propositions
+                 * n'existe que côté serveur). */}
+                {hasActions ? <td className={styles.actionId}>{m.action_id ?? "—"}</td> : null}
                 <td>{m.sender || m.sender_email}</td>
                 <td>{m.subject}</td>
                 <td className={styles.date}>{formatMailDate(m.date)}</td>
