@@ -11,6 +11,20 @@ from aelyn.core.config import settings
 # écrit souvent la conjonction telle quelle plutôt qu'une vraie virgule.
 _KEYWORD_SEPARATOR_RE = re.compile(r",|\bet\b|&", re.IGNORECASE)
 
+# `motsCles` sur l'API France Travail fait un ET strict entre tous les mots
+# significatifs (vérifié en direct : "gestion des risques bancaires" (3 mots
+# hors "des") -> 0 résultat, alors que "risques bancaires" (2 mots) -> 30).
+# Ignorés ici pour ne pas compter comme des mots "significatifs" dans cette
+# évaluation, pas pour les retirer de la requête elle-même.
+_FRENCH_STOPWORDS = {
+    "de", "des", "du", "la", "le", "les", "et", "en", "à", "a", "au", "aux",
+    "un", "une", "pour", "dans", "sur", "par", "ou", "d", "l",
+}
+
+
+def _significant_words(phrase: str) -> list[str]:
+    return [w for w in re.findall(r"\S+", phrase) if w.lower() not in _FRENCH_STOPWORDS]
+
 dotenv.load_dotenv()
 CLIENT_ID = os.getenv("FRANCE_TRAVAIL_CLIENT_ID")
 CLIENT_SECRET = os.getenv("FRANCE_TRAVAIL_CLIENT_SECRET")
@@ -171,6 +185,46 @@ class FTOffers:
 
         return offres, possible_filters
 
+    def _search_relaxed(self, mot_cle: str, contract_type: str | None):
+        """`search_offers_for(mot_cle)` puis, UNIQUEMENT si ça ne renvoie rien
+        ET que `mot_cle` a 3 mots significatifs ou plus, relâche la requête
+        au lieu de rendre une liste vide pour une phrase pourtant pertinente
+        (ex. "gestion des risques bancaires", un domaine demandé en direct) :
+
+        1. chaque paire de mots adjacents (ex. "gestion risques", puis
+           "risques bancaires") ; union des résultats dès qu'une paire en
+           trouve (une recherche à 2 mots a de bien meilleures chances sur
+           cette API, cf. `_FRENCH_STOPWORDS` ci-dessus) ;
+        2. sinon, chaque mot pris isolément, union de tout ce qui est trouvé.
+
+        Les mots-clés à 1-2 mots (le cas courant, déjà couvert par
+        `search_offers_for` seul) ne déclenchent jamais ce relâchement.
+        """
+        offres, filtres = self.search_offers_for(mot_cle, contract_type=contract_type)
+        if offres:
+            return offres, filtres
+
+        words = _significant_words(mot_cle)
+        if len(words) < 3:
+            return offres, filtres
+
+        for candidates in (
+            [f"{words[i]} {words[i + 1]}" for i in range(len(words) - 1)],
+            words,
+        ):
+            trouvees: dict[str, dict] = {}
+            dernier_filtre = filtres
+            for candidate in candidates:
+                sub_offres, sub_filtres = self.search_offers_for(candidate, contract_type=contract_type)
+                if sub_filtres is not None:
+                    dernier_filtre = sub_filtres
+                for offre in sub_offres:
+                    trouvees[offre["id"]] = offre
+            if trouvees:
+                return list(trouvees.values()), dernier_filtre
+
+        return offres, filtres
+
     def search_offers(self, contract_type: str | None = None, keywords: str | None = None):
         """Une recherche par mot-clé (de `keywords` si fourni, sinon
         `self.keywords`), résultats fusionnés, dédupliqués par identifiant
@@ -185,7 +239,7 @@ class FTOffers:
         offres_par_id: dict[str, dict] = {}
         possible_filters = None
         for mot_cle in mots_cles:
-            offres, filtres = self.search_offers_for(mot_cle, contract_type=contract_type)
+            offres, filtres = self._search_relaxed(mot_cle, contract_type)
             if filtres is not None:
                 possible_filters = filtres
             for offre in offres:
