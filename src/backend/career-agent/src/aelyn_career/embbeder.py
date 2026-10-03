@@ -62,7 +62,15 @@ class TextEmbbeder:
             # d'embedding à chaque `TextEmbbeder()`, c'est coûteux.
             return
 
-        self.embedding_model = SentenceTransformer(os.getenv("EMBEDDING_MODEL_NAME", "BAAI/bge-m3"))
+        # `device=settings.embedding_device` (jamais omis) : sans lui,
+        # `SentenceTransformer` retombe sur l'auto-détection de PyTorch
+        # (CUDA si disponible), ignorant totalement ce réglage - gap réel,
+        # `EMBEDDING_DEVICE=cpu` dans `.env` (écrit par install.sh/.ps1
+        # selon le matériel détecté, ou pour éviter une contention VRAM
+        # avec Ollama) n'avait jusqu'ici aucun effet.
+        self.embedding_model = SentenceTransformer(
+            os.getenv("EMBEDDING_MODEL_NAME", "BAAI/bge-m3"), device=settings.embedding_device
+        )
         self._model = self.embedding_model
         self.default_where_to_save = os.getenv("EMBEDDINGS_DIR", "career-agent/src/aelyn_career")
         self._offer_cache = OfferCache(Path(self.default_where_to_save) / "offers_cache.db")
@@ -87,6 +95,28 @@ class TextEmbbeder:
         embedding = self.embedding_model.encode(text)
         self._offer_cache.save_embedding(text_hash, embedding)
         return embedding
+
+    def encode_cached_batch(self, texts: list[str]) -> np.ndarray:
+        """Comme `encode_cached`, mais pour PLUSIEURS textes à la fois
+        (ex. tous les chunks du profil pour UNE offre) : les textes déjà en
+        cache sont servis tels quels, et SEULS ceux manquants sont encodés
+        en UN SEUL appel batché à `encode_model()`, pas un appel séparé
+        par texte. Sur CPU (pas de parallélisme GPU pour amortir l'overhead
+        par appel), encoder N chunks un par un est nettement plus lent que
+        les encoder ensemble - mesurable dès une dizaine de chunks de
+        profil, répété à CHAQUE offre d'une recherche."""
+        hashes = [hash_offer(text) for text in texts]
+        cached = [self._offer_cache.get_embedding(h) for h in hashes]
+
+        missing_indices = [i for i, c in enumerate(cached) if c is None]
+        if missing_indices:
+            missing_embeddings = self.embedding_model.encode([texts[i] for i in missing_indices])
+            for position, index in enumerate(missing_indices):
+                embedding = missing_embeddings[position]
+                cached[index] = embedding
+                self._offer_cache.save_embedding(hashes[index], embedding)
+
+        return np.array(cached)
 
     def texts_scoring(self, chunks_text, offre_structuree):
         """Score les chunks du profil (cf. `ProfilManager.parse_profile`) par
@@ -178,7 +208,7 @@ class TextEmbbeder:
         if isinstance(competences, list):
             competences = " ".join(competences)
 
-        chunks_embeddings = np.array([self.encode_cached(chunk["text"]) for chunk in chunks_text])
+        chunks_embeddings = self.encode_cached_batch([chunk["text"] for chunk in chunks_text])
         offre_embedding = self.encode_cached(competences)
         cos_sim_raw = self.similarity(chunks_embeddings, offre_embedding)
         cos_sim = self._squash_cosine(cos_sim_raw)

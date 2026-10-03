@@ -160,6 +160,14 @@ class Settings(BaseModel):
     # globale du score, pas son classement relatif entre offres.
     weight_score_txt_match: float = 0.4
     weight_score_cos: float = 0.6
+    # "cuda" suppose un GPU NVIDIA disponible (cf. `whisper_device` plus
+    # haut, même logique) ; install.sh/.ps1 écrivent déjà cette variable
+    # selon le matériel détecté, mais `TextEmbbeder` ne la lisait jusqu'ici
+    # JAMAIS (gap réel : `SentenceTransformer(...)` était construit sans
+    # `device=`, donc toujours sur l'auto-détection de PyTorch, ignorant ce
+    # réglage) - forcer "cpu" ici n'avait alors aucun effet, y compris
+    # pour éviter une contention VRAM avec Ollama sur un GPU déjà chargé.
+    embedding_device: str = "cuda"
     # Mots-clés de recherche France Travail, UNE chaîne séparée par des
     # virgules (format natif de l'API France Travail, cf.
     # `france_travail/offers.py`) ; exposée à l'API comme `list[str]` pour
@@ -247,6 +255,7 @@ def get_settings() -> Settings:
         candidate_level=os.getenv("CANDIDATE_LEVEL", "junior"),
         weight_score_txt_match=_env_float("WEIGHT_SCORE_TXT_MATCH", 0.4),
         weight_score_cos=_env_float("WEIGHT_SCORE_COS", 0.6),
+        embedding_device=os.getenv("EMBEDDING_DEVICE", "cuda"),
         keywords=os.getenv("KEYWORDS", ""),
         department=os.getenv("DEPARTMENT", ""),
     )

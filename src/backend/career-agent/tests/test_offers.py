@@ -215,15 +215,21 @@ class TestSearchOffersFor:
         assert [o["id"] for o in offres] == ["2"]
 
     @patch("aelyn_career.france_travail.offers.requests.get")
-    def test_stage_sends_cdd_and_filters_on_keyword(self, mock_get):
+    def test_stage_sends_no_server_side_contract_filter_and_filters_on_keyword(self, mock_get):
+        # Pas de "typeContrat" envoyé à l'API pour "stage" (contrairement à
+        # cdi/cdd) : un stage n'étant pas un contrat de travail légal,
+        # France Travail ne le range PAS fiablement sous un typeContrat
+        # donné (vérifié en direct : CDI, MIS, LIB selon l'employeur,
+        # jamais exclusivement CDD) - un filtre serveur "CDD" exclurait
+        # alors de vraies offres de stage avant même ce filtre texte.
         mock_get.return_value = make_response(
             200,
             {
                 "resultats": [
-                    {"id": "1", "intitule": "Data Scientist", "alternance": False, "description": ""},
-                    {"id": "2", "intitule": "Stage Data Scientist", "alternance": False, "description": ""},
-                    {"id": "3", "intitule": "Alternance Data Scientist", "alternance": True, "description": ""},
-                    {"id": "4", "intitule": "Data Scientist", "alternance": False, "description": "Stage de 6 mois"},
+                    {"id": "1", "intitule": "Data Scientist", "alternance": False, "description": "", "typeContrat": "CDI"},
+                    {"id": "2", "intitule": "Stage Data Scientist", "alternance": False, "description": "", "typeContrat": "MIS"},
+                    {"id": "3", "intitule": "Alternance Data Scientist", "alternance": True, "description": "", "typeContrat": "CDD"},
+                    {"id": "4", "intitule": "Data Scientist", "alternance": False, "description": "Stage de 6 mois", "typeContrat": "CDD"},
                 ]
             },
         )
@@ -232,7 +238,7 @@ class TestSearchOffersFor:
         offres, _ = ft.search_offers_for("Data Scientist", contract_type="stage")
 
         _, kwargs = mock_get.call_args
-        assert kwargs["params"]["typeContrat"] == "CDD"
+        assert "typeContrat" not in kwargs["params"]
         assert {o["id"] for o in offres} == {"2", "4"}
 
     @patch("aelyn_career.france_travail.offers.requests.get")

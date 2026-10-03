@@ -39,11 +39,19 @@ URL = os.getenv("FRANCE_TRAVAIL_URL", "https://api.francetravail.io/partenaire/o
 # en direct : la première offre renvoyée reste hors alternance) : on ne s'y
 # fie pas, on filtre après coup sur le champ booléen fiable `alternance` de
 # chaque offre.
+# "stage" : {} volontairement (pas "typeContrat": "CDD") - bug réel vérifié
+# en direct sur de vraies données France Travail, un stage n'étant pas un
+# "contrat de travail" légal, France Travail ne le range PAS de façon
+# fiable sous "CDD" : sur "marketing"/"comptabilite"/"informatique", 0% des
+# annonces mentionnant "stage" dans leur titre/description portaient
+# typeContrat=CDD (CDI, MIS, LIB... selon l'employeur) - ce filtre excluait
+# alors purement et simplement TOUTES les offres de stage pour ces
+# domaines avant même d'atteindre le filtre texte ci-dessous.
 CONTRACT_TYPE_PARAMS = {
     "cdi": {"typeContrat": "CDI"},
     "cdd": {"typeContrat": "CDD"},
     "alternance": {},
-    "stage": {"typeContrat": "CDD"},
+    "stage": {},
 }
 _RANGE_PAGE_SIZE = 150
 
