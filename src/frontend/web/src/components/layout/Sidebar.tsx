@@ -1,9 +1,10 @@
 import { NavLink } from "react-router-dom";
 import { cameras, securityEvents } from "../../mocks";
 import { StatusDot } from "../ui/StatusDot";
+import { LITE_MODE } from "../../lib/liteMode";
 import styles from "./Sidebar.module.css";
 
-const NAV_ITEMS = [
+const ALL_NAV_ITEMS = [
   { path: "/", label: "Overview" },
   { path: "/cameras", label: "Cameras" },
   { path: "/security", label: "Security" },
@@ -13,6 +14,10 @@ const NAV_ITEMS = [
   { path: "/system", label: "System" },
   { path: "/settings", label: "Settings" },
 ] as const;
+
+// Pas de matériel caméra en version lite : lien retiré plutôt que menant
+// vers une page vide/webcam de démo.
+const NAV_ITEMS = LITE_MODE ? ALL_NAV_ITEMS.filter((item) => item.path !== "/cameras") : ALL_NAV_ITEMS;
 
 const recentCritical = securityEvents.filter((e) => e.severity !== "info").length;
 const disconnectedCameras = cameras.filter((c) => c.connection !== "connected").length;

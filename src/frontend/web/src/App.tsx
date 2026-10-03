@@ -1,4 +1,4 @@
-import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { AppShell } from "./components/layout/AppShell";
 import { Overview } from "./pages/Overview";
 import { Cameras } from "./pages/Cameras";
@@ -8,6 +8,7 @@ import { Data } from "./pages/Data";
 import { Activity } from "./pages/Activity";
 import { System } from "./pages/System";
 import { Settings } from "./pages/Settings";
+import { LITE_MODE } from "./lib/liteMode";
 
 export default function App() {
   return (
@@ -15,7 +16,10 @@ export default function App() {
       <Routes>
         <Route element={<AppShell />}>
           <Route index element={<Overview />} />
-          <Route path="cameras" element={<Cameras />} />
+          {/* Pas de matériel caméra en version lite : route retirée (pas
+           * juste le lien) pour qu'une URL /cameras tapée à la main ne mène
+           * pas non plus vers une page webcam de démo sans objet. */}
+          <Route path="cameras" element={LITE_MODE ? <Navigate to="/" replace /> : <Cameras />} />
           <Route path="security" element={<Security />} />
           <Route path="assistant" element={<Assistant />} />
           <Route path="data" element={<Data />} />

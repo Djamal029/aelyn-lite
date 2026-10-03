@@ -8,9 +8,13 @@ import { LogPanel } from "../components/ui/LogPanel";
 import { CommandBar } from "../components/commandbar/CommandBar";
 import { nodes, cameras, securityEvents, activityLog } from "../mocks";
 import { useCoreNode } from "../lib/useCoreNode";
+import { LITE_MODE } from "../lib/liteMode";
 import styles from "./Overview.module.css";
 
-const otherNodes = nodes.filter((n) => n.id !== "core");
+// Les nœuds Raspberry Pi sont du matériel cible non déployé même en version
+// complète ; en lite, personne n'en a, donc on les masque plutôt que
+// d'afficher "non déployé" pour un appareil qui n'existera jamais ici.
+const otherNodes = nodes.filter((n) => n.id !== "core" && !(LITE_MODE && n.id.startsWith("pi-")));
 
 export function Overview() {
   const navigate = useNavigate();
@@ -65,11 +69,13 @@ export function Overview() {
           </div>
         </Panel>
 
-        <div className={styles.camerasRow}>
-          {cameras.slice(0, 2).map((cam) => (
-            <CameraTile key={cam.id} camera={cam} onExpand={() => navigate("/cameras")} />
-          ))}
-        </div>
+        {LITE_MODE ? null : (
+          <div className={styles.camerasRow}>
+            {cameras.slice(0, 2).map((cam) => (
+              <CameraTile key={cam.id} camera={cam} onExpand={() => navigate("/cameras")} />
+            ))}
+          </div>
+        )}
 
         <Panel
           title="Événements sécurité"

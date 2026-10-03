@@ -4,6 +4,7 @@ import { RadialGauge } from "../components/ui/RadialGauge";
 import { StatusDot } from "../components/ui/StatusDot";
 import { nodes } from "../mocks";
 import { useCoreNode } from "../lib/useCoreNode";
+import { LITE_MODE } from "../lib/liteMode";
 import type { NodeStatus } from "../types";
 import styles from "./System.module.css";
 
@@ -35,7 +36,9 @@ function buildMetricItems(node: NodeStatus, networkTotal: string | null): Metric
 
 export function System() {
   const { core, live, networkTotal, gpu, tailscale } = useCoreNode();
-  const displayNodes = nodes.map((n) => (n.id === "core" ? core : n));
+  const displayNodes = nodes
+    .filter((n) => !(LITE_MODE && n.id.startsWith("pi-")))
+    .map((n) => (n.id === "core" ? core : n));
 
   return (
     <div className={styles.page}>
