@@ -129,6 +129,28 @@ def is_ai_related(title: str, description: str = "") -> bool:
     return any(_canonicalize(keyword) in text for keyword in _AI_KEYWORDS)
 
 
+def expand_domain_terms(text: str) -> set[str]:
+    """Mots de CHAQUE domaine (`_DOMAIN_KEYWORDS`) dont au moins un mot-clé
+    apparaît dans `text`, pour enrichir un score de recouvrement lexical.
+
+    Comble un angle mort constaté en direct (sélection CV/lettre, cf.
+    `ApplicationWriter._keyword_selection`) : une offre qui dit "intelligence
+    artificielle" ou "agents IA" ne partage AUCUN mot avec une certification
+    intitulée "Machine Learning specialisation", bien que les deux désignent
+    le même domaine - la certification la plus pertinente disparaissait donc
+    silencieusement pour ce type d'offre. N'affecte jamais `infer_domain`/
+    `is_ai_related` ci-dessus (classification d'offre, volontairement
+    stricte sur le texte réel), seulement la mise en correspondance profil/
+    offre en aval."""
+    canon = _canonicalize(text)
+    expanded: set[str] = set()
+    for keywords in _DOMAIN_KEYWORDS.values():
+        if any(_canonicalize(keyword) in canon for keyword in keywords):
+            for keyword in keywords:
+                expanded.update(re.findall(r"[a-z0-9]+", _canonicalize(keyword)))
+    return expanded
+
+
 def extract_skills(title: str, description: str = "") -> list[str]:
     text = _extract_texts(title, description)
     seen: set[str] = set()

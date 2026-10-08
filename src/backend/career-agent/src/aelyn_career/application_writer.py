@@ -20,6 +20,7 @@ from pydantic import BaseModel, Field
 
 from aelyn.core.config import settings
 from aelyn.core.llm import KEEP_ALIVE_OCCASIONAL, LLMClient
+from aelyn_career.job_sources import expand_domain_terms
 from aelyn_career.models import CVContent, CVExperience, CVProjet
 from aelyn_career.profil_manager import ProfilManager, load_profil_json
 from aelyn_career.prompts import (
@@ -530,7 +531,13 @@ class ApplicationWriter:
         return experiences, projects, skills, certifications
 
     def _keyword_selection(self, offer_context: str) -> ApplicationSelection:
-        terms = self._offer_terms(offer_context)
+        # Côté offre uniquement (jamais côté candidat.e ci-dessous) : une
+        # offre qui dit "intelligence artificielle"/"agents IA" doit aussi
+        # matcher un intitulé réel disant "Machine Learning", même sans
+        # mot commun (cf. `expand_domain_terms`). Élargir aussi le texte du
+        # candidat.e romprait la précision du recouvrement (tout ce qui
+        # partage un domaine matcherait tout).
+        terms = self._offer_terms(offer_context) | expand_domain_terms(offer_context)
         experiences, projects, skills, certifications = self._selection_records()
 
         def ranked_indices(records: list[dict], text_for, limit: int) -> list[int]:

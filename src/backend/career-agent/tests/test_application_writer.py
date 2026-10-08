@@ -266,6 +266,28 @@ def test_keywords_mode_does_not_call_the_llm(monkeypatch):
     writer.llm.structured.assert_not_called()
 
 
+def test_certification_matches_offer_via_domain_synonym_not_literal_overlap():
+    """Constaté en direct : une offre qui dit "intelligence artificielle"/
+    "agents IA" ne partage AUCUN mot avec une certification intitulée
+    "Machine Learning Specialization" - sans `expand_domain_terms`
+    (job_sources.py), la certification la plus pertinente disparaissait
+    silencieusement pour ce type d'offre, au profit des 3 premières
+    certifications du profil sans rapport avec l'offre."""
+    profile = make_profile()
+    profile["profile"]["certifications"]["linkedin"].append(
+        {"title": "Machine Learning Specialization", "issuer": "DeepLearning.AI"}
+    )
+    writer = ApplicationWriter(ProfilManager(profile), llm=Mock())
+
+    cv = writer.draft_cv(
+        "Stage Intelligence Artificielle\n"
+        "Description de l'offre :\n"
+        "Construction d'agents IA et de solutions generatives."
+    )
+
+    assert "Machine Learning Specialization" in cv.certifications
+
+
 def test_ambiguous_same_employer_experience_does_not_guess_from_partial_labels():
     writer = make_writer()
 

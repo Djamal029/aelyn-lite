@@ -411,7 +411,12 @@ class TestSearchOffers:
 
 
 class TestJobSearchService:
-    def test_search_returns_deduplicated_enriched_offers(self):
+    def test_search_returns_deduplicated_enriched_offers(self, monkeypatch):
+        # Explicite, pas juste l'absence par défaut : un poste de dev avec
+        # AELYN_ENABLE_PUBLIC_JOB_APIS=true dans son .env réel (cf. autres
+        # tests de cette classe, qui l'activent expressément) ferait sinon
+        # de vrais appels réseau ici et casserait l'assertion de longueur.
+        monkeypatch.setenv("AELYN_ENABLE_PUBLIC_JOB_APIS", "false")
         ft = FTOffers(access_token="token")
         service = JobSearchService(ft)
         offre_1 = {"id": "1", "intitule": "Data Scientist", "typeContrat": "CDI", "description": "Python, ML, AI", "dateCreation": "2026-09-01"}
