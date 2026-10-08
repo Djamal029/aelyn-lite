@@ -353,8 +353,9 @@ export interface ApiChatEntry {
   content: string;
 }
 
-export function getChatHistory(limit = 50): Promise<ApiChatEntry[]> {
-  return request(`/chat/history?limit=${limit}`);
+export function getChatHistory(limit = 50, beforeId?: number): Promise<ApiChatEntry[]> {
+  const before = beforeId !== undefined ? `&before_id=${beforeId}` : "";
+  return request(`/chat/history?limit=${limit}${before}`);
 }
 
 // ---- Activity ------------------------------------------------------

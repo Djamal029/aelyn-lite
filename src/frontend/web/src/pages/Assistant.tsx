@@ -126,6 +126,9 @@ export function Assistant() {
   // porte jamais ces deux champs). Voir le fichier du store pour le détail.
   const [messages, setMessages] = useChatMessages();
   const [historySource, setHistorySource] = useState<"offline" | "live">("offline");
+  const [oldestHistoryId, setOldestHistoryId] = useState<number | null>(null);
+  const [hasMoreHistory, setHasMoreHistory] = useState(false);
+  const [loadingOlder, setLoadingOlder] = useState(false);
   const [voiceOpen, setVoiceOpen] = useState(Boolean((location.state as { openVoice?: boolean } | null)?.openVoice));
   const [speakReplies, setSpeakReplies] = useState(false);
   const [ttsError, setTtsError] = useState<string | null>(null);
@@ -156,6 +159,8 @@ export function Assistant() {
         if (cancelled) return;
         setMessages(history.map(fromApiEntry));
         setHistorySource("live");
+        if (history.length > 0) setOldestHistoryId(Number(history[0].id));
+        setHasMoreHistory(history.length === 50);
       } catch {
         // backend reachable but history fetch failed: stay empty
       }
@@ -165,6 +170,29 @@ export function Assistant() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // "Charger l'historique plus ancien" (cf. ChatHistory) : GET
+  // /chat/history ne renvoyait jusqu'ici QUE les 50 derniers tours, sans
+  // aucun moyen de remonter plus loin - une conversation active dépasse
+  // vite ce seuil, et la recherche dans l'historique semblait "ne pas
+  // marcher" pour tout ce qui datait d'avant. `before_id` (nouveau,
+  // cf. chat.py/chat_history.py) permet de paginer vers le passé ; on
+  // préfixe le lot obtenu au lieu de l'ajouter à la fin, qui reste
+  // l'ordre chronologique normal de lecture.
+  const loadOlderHistory = async () => {
+    if (oldestHistoryId === null || loadingOlder) return;
+    setLoadingOlder(true);
+    try {
+      const older = await getChatHistory(50, oldestHistoryId);
+      setMessages((prev) => [...older.map(fromApiEntry), ...prev]);
+      if (older.length > 0) setOldestHistoryId(Number(older[0].id));
+      setHasMoreHistory(older.length === 50);
+    } catch {
+      // keep what's already loaded, let the user retry
+    } finally {
+      setLoadingOlder(false);
+    }
+  };
 
   const handleTextSubmitted = (prompt: string, token: string) => {
     setMessages((prev) => appendPendingExchange(prev, prompt, token));
@@ -333,6 +361,8 @@ export function Assistant() {
           messages={messages}
           onPrepareCvs={handlePrepareCvs}
           onPrepareCoverLetters={handlePrepareCoverLetters}
+          onLoadOlder={hasMoreHistory ? loadOlderHistory : undefined}
+          loadingOlder={loadingOlder}
         />
         <CommandBar
           variant="chatInput"

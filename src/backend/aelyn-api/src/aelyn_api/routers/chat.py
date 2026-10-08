@@ -67,10 +67,14 @@ class ChatReplyOut(BaseModel):
 
 
 @router.get("/history", response_model=list[ChatMessageOut])
-def get_history(limit: int = 50, history: ChatHistory = Depends(get_chat_history)) -> list[ChatMessageOut]:
+def get_history(
+    limit: int = 50,
+    before_id: int | None = None,
+    history: ChatHistory = Depends(get_chat_history),
+) -> list[ChatMessageOut]:
     return [
         ChatMessageOut(id=m.id, ts=m.ts.isoformat(), role=m.role, content=m.content)
-        for m in history.recent(limit)
+        for m in history.recent(limit, before_id=before_id)
     ]
 
 

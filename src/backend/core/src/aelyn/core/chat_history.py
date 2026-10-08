@@ -66,11 +66,21 @@ class ChatHistory:
             session.commit()
             return row.id
 
-    def recent(self, limit: int = 50) -> list[ChatMessage]:
+    def recent(self, limit: int = 50, before_id: int | None = None) -> list[ChatMessage]:
         """Les `limit` derniers tours, dans l'ordre chronologique (le plus
-        ancien d'abord), l'ordre naturel de lecture d'une conversation."""
+        ancien d'abord), l'ordre naturel de lecture d'une conversation.
+
+        `before_id` : ne renvoie que les tours antérieurs à cet id, pour
+        charger la suite plus ancienne d'un historique déjà partiellement
+        affiché (sans lui, impossible de remonter au-delà des `limit`
+        tours les plus récents : exactement le bug "l'historique ne
+        fonctionne pas bien" remonté par l'utilisateur, une conversation
+        active dépasse vite 50 tours)."""
         with Session(self._engine) as session:
-            stmt = select(ChatMessageRow).order_by(ChatMessageRow.id.desc()).limit(limit)
+            stmt = select(ChatMessageRow).order_by(ChatMessageRow.id.desc())
+            if before_id is not None:
+                stmt = stmt.where(ChatMessageRow.id < before_id)
+            stmt = stmt.limit(limit)
             rows = session.scalars(stmt).all()
             return [_to_message(r) for r in reversed(rows)]
 

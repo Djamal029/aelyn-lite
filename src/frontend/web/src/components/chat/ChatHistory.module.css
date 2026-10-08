@@ -69,3 +69,30 @@
   color: var(--text-muted);
   font-size: var(--fs-sm);
 }
+
+.loadOlder {
+  display: flex;
+  justify-content: center;
+  padding: var(--sp-1) var(--sp-4) var(--sp-3);
+}
+
+.loadOlder button {
+  background: var(--bg-inset);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  padding: var(--sp-1) var(--sp-3);
+  font-size: var(--fs-xs);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: border-color var(--duration-fast) var(--ease-standard), color var(--duration-fast) var(--ease-standard);
+}
+
+.loadOlder button:hover:not(:disabled) {
+  border-color: var(--state-blue);
+  color: var(--text-primary);
+}
+
+.loadOlder button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
