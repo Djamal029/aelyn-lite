@@ -303,8 +303,8 @@ export function Assistant() {
           <span className={styles.title}>Assistant</span>
           <span className={styles.subtitle}>
             {historySource === "live"
-              ? "historique réel (aelyn-api · SQLite, partagé avec le CLI), verifier / chercher_offres / media exécutés pour de vrai"
-              : "AELYN Core (aelyn-api) injoignable : aucun historique, commandes simulées localement"}
+              ? "Connecté à AELYN Core : historique réel, les actions que tu lances ici s'exécutent pour de vrai."
+              : "AELYN Core injoignable : aucun historique, les commandes restent simulées sur cet appareil."}
           </span>
         </div>
         <div className={styles.toolbarActions}>
@@ -318,7 +318,7 @@ export function Assistant() {
               if (!next) tts.cancel();
             }}
             type="button"
-            title="Voix AELYN (aelyn-api /tts) avec repli sur la voix du navigateur si indisponible"
+            title="Voix d'AELYN, avec repli sur la voix du navigateur si indisponible"
           >
             {speakReplies ? "Lecture à voix haute : activée" : "Lire les réponses à voix haute"}
           </button>

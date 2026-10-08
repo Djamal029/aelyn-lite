@@ -31,6 +31,28 @@ const LIVE_KEY_MAP: Partial<Record<string, keyof ApiSettings>> = {
   OLLAMA_HOST: "ollama_host",
 };
 
+// Libellés humains pour les clés techniques (.env.example et `GET
+// /settings`) : une interface de réglages n'affiche pas des noms de
+// variable d'environnement, même si c'est ce qui circule sous le capot.
+const FIELD_LABELS: Record<string, string> = {
+  USER_NAME: "Nom d'utilisateur",
+  USER_FULL_NAME: "Nom complet",
+  USER_CITY: "Ville",
+  OLLAMA_HOST: "Adresse du serveur Ollama",
+  LLM_THINK: "Mode réflexion du modèle",
+  FACES_DIR: "Dossier des visages enregistrés",
+  WHISPER_MODEL_SIZE: "Taille du modèle de reconnaissance vocale",
+  WHISPER_DEVICE: "Matériel pour la reconnaissance vocale",
+  TV_IP_ADRESS: "Adresse IP de la télé",
+  ALLOW_AUTONOMOUS_SEND: "Envoi autonome des mails",
+  MAX_MAILS_PER_RUN: "Nombre maximum de mails par analyse",
+  TV_CONFIGURED: "Télé configurée",
+};
+
+function fieldLabel(key: string): string {
+  return FIELD_LABELS[key] ?? key;
+}
+
 const CANDIDATE_LEVELS = ["stage", "junior", "senior", "postdoc"] as const;
 
 interface EditableDraft {
@@ -700,7 +722,7 @@ export function Settings() {
                     key={entry.key}
                   >
                     <span className={styles.key}>
-                      {entry.key} {live ? <Badge kind="active">live</Badge> : null}
+                      {fieldLabel(entry.key)} {live ? <Badge kind="active">live</Badge> : null}
                     </span>
                     <span className={styles.valueGroup}>
                       <span className={styles.toggle}>
@@ -722,7 +744,7 @@ export function Settings() {
               return (
                 <div className={styles.row} key={entry.key}>
                   <span className={styles.key}>
-                    {entry.key} {isLive ? <Badge kind="active">live</Badge> : null}
+                    {fieldLabel(entry.key)} {isLive ? <Badge kind="active">live</Badge> : null}
                   </span>
                   <span className={styles.valueGroup}>
                     <span className={styles.value}>{value}</span>
@@ -735,10 +757,10 @@ export function Settings() {
         ))}
 
         {live && apiSettings && !LITE_MODE ? (
-          <Panel title="Caméras locales (aelyn-api)">
+          <Panel title="Caméras locales">
             <div className={styles.row}>
               <span className={styles.key}>
-                TV_CONFIGURED <Badge kind="active">live</Badge>
+                {fieldLabel("TV_CONFIGURED")} <Badge kind="active">live</Badge>
               </span>
               <span className={styles.valueGroup}>
                 <span className={styles.value}>{String(apiSettings.tv_configured)}</span>
