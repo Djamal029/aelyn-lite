@@ -66,6 +66,14 @@ ci-dessus à chaque lancement.
 
   Sans ces identifiants, tout le reste d'AELYN fonctionne normalement ; seule la recherche
   d'offres reste indisponible.
+- **Sources d'offres complémentaires** (optionnel, en plus de France Travail) : le script
+  d'installation propose de les activer (`AELYN_ENABLE_PUBLIC_JOB_APIS=true` dans `.env`).
+  Trois fonctionnent sans aucune clé ni inscription : **RemoteOK**, **Remotive**,
+  **Arbeitnow**. Les autres demandent une clé API, à renseigner dans `.env` :
+  - **Adzuna** (international) : inscription sur [developer.adzuna.com](https://developer.adzuna.com)
+  - **Reed** (Royaume-Uni) : [reed.co.uk/developers](https://www.reed.co.uk/developers)
+  - **Careerjet** : programme Publisher, un peu plus de friction (IP/Referer parfois exigés)
+  - **Jooble** : inscription sur [fr.jooble.org/api/about](https://fr.jooble.org/api/about), clé envoyée par email
 
 ## Documentation complète
 
