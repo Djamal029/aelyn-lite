@@ -1,9 +1,17 @@
 from unittest.mock import Mock, patch
 
 from aelyn.core.config import settings
-from aelyn_career.application_writer import ApplicationSelection, ApplicationWriter
+from aelyn_career.application_writer import ApplicationSelection, ApplicationWriter, _merge_indices
 from aelyn_career.models import CVExperience
 from aelyn_career.profil_manager import ProfilManager, validate_profil_structure
+
+
+def test_merge_indices_keeps_floor_order_and_appends_new_entries_within_limit():
+    assert _merge_indices([2, 0], [0, 4, 1], limit=3) == [2, 0, 4]
+
+
+def test_merge_indices_never_exceeds_limit_even_with_many_extras():
+    assert _merge_indices([0], [1, 2, 3, 4], limit=3) == [0, 1, 2]
 
 
 def make_profile() -> dict:
@@ -234,7 +242,11 @@ def test_draft_cv_rebuilds_from_profile_when_llm_returns_invalid_evidence_ids(mo
     assert writer.llm.structured.call_args.kwargs["schema"] is ApplicationSelection
 
 
-def test_llm_mode_selects_only_profile_evidence_ids(monkeypatch):
+def test_llm_mode_merges_with_keyword_floor_never_drops_relevant_evidence(monkeypatch):
+    """Le mode "llm" ne REMPLACE plus la sélection par mots-clés, il la
+    COMPLÈTE (cf. `_merge_indices`) : un CV réel ne doit jamais perdre une
+    expérience/un projet/une compétence que le simple recouvrement lexical
+    jugeait déjà pertinent, même si le LLM local propose autre chose."""
     monkeypatch.setattr(settings, "application_selection_mode", "llm")
     writer = make_writer()
     writer.llm.structured.return_value = ApplicationSelection(
@@ -246,9 +258,13 @@ def test_llm_mode_selects_only_profile_evidence_ids(monkeypatch):
 
     selected = writer._select_application_items("Data Scientist\nPython analytics")
 
-    assert selected.experience_indices == [1]
+    # Plancher mots-clés (4 expériences, aucune pertinente lexicalement :
+    # toutes gardées à égalité) fusionné avec l'ajout LLM (déjà inclus).
+    assert selected.experience_indices == [0, 1, 2, 3]
     assert selected.project_indices == [0]
-    assert selected.skill_indices == [0]
+    # Plancher mots-clés : les deux compétences "Data Science" (Python, SQL)
+    # partagent un mot avec l'offre, "Statistique" (R) non.
+    assert selected.skill_indices == [0, 1, 2]
     # Toujours déterministe (mots-clés), même en mode "llm" : le LLM a beau
     # proposer [1] ("Cloud Fundamentals"), seule "Data Science Certificate"
     # (index 0) partage un mot avec l'offre - la sortie LLM est ignorée.
