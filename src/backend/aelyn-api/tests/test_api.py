@@ -443,3 +443,44 @@ class TestEmailActions:
         assert response.status_code == 200
         assert response.json() == {"status": "rejected"}
         agent.reject.assert_called_once_with(7)
+
+
+class TestChatOfferCaching:
+    def test_offers_from_chat_message_become_generatable_by_id(self) -> None:
+        """Bug réel : une offre affichée dans le tableau du chat web ne
+        venait jamais de GET /career (qui seul alimentait le cache
+        process utilisé par POST /career/{id}/cv) - cliquer "préparer le
+        CV" pour une offre vue dans le chat répondait donc 404 "inconnue,
+        appelle GET /career d'abord", alors que l'utilisateur ne voit
+        jamais que le tableau du chat."""
+        from aelyn_api.deps import get_application_writer, get_conversational_agent
+        from aelyn_career.models import CVContent
+        from aelyn_conversation.models import TurnResult
+
+        offer = {
+            "id": "chat-offer-1",
+            "intitule": "Data Scientist",
+            "entreprise": {"nom": "ACME"},
+            "description": "Analyse de données.",
+        }
+        agent = MagicMock()
+        agent.handle_message.return_value = TurnResult(
+            text="1 offre trouvée.", result_type="offers", results=[offer]
+        )
+        writer = MagicMock()
+        writer.draft_cv.return_value = CVContent(
+            profil="Profil", experiences=[], projets=[], competences={},
+            formation=[], certifications=[], langues=[], centres_interet=[],
+        )
+        app.dependency_overrides[get_conversational_agent] = lambda: agent
+        app.dependency_overrides[get_application_writer] = lambda: writer
+        try:
+            chat_response = client.post("/chat/message", json={"message": "cherche des offres"})
+            assert chat_response.status_code == 200
+
+            cv_response = client.post("/career/chat-offer-1/cv")
+        finally:
+            app.dependency_overrides.clear()
+
+        assert cv_response.status_code == 200
+        assert cv_response.json()["profil"] == "Profil"

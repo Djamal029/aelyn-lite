@@ -37,7 +37,7 @@ from aelyn.core.chat_history import ChatHistory
 from aelyn_conversation.agent import ConversationalAgent, _Heartbeat
 from aelyn_conversation.models import TurnResult
 
-from aelyn_api.deps import get_chat_history, get_conversational_agent
+from aelyn_api.deps import cache_offers, get_chat_history, get_conversational_agent
 
 logger = logging.getLogger(__name__)
 
@@ -96,6 +96,14 @@ def send_message(
     attendu à absorber silencieusement ici.
     """
     result = agent.handle_message(body.message)
+    # Sans ça, `POST /career/{id}/cv` répond 404 "inconnue, appelle GET
+    # /career d'abord" pour TOUTE offre affichée via le chat (bug réel :
+    # le tableau d'offres de l'UI web vient d'ici, pas de GET /career) -
+    # même cache process que cette route (`aelyn_api.deps._offers_cache`),
+    # pour qu'une offre devienne générable par CV peu importe par où elle
+    # a été vue.
+    if result.result_type == "offers" and result.results:
+        cache_offers(result.results)
     return ChatReplyOut(text=result.text, result_type=result.result_type, results=result.results)
 
 
@@ -137,6 +145,8 @@ def _stream_events(agent: ConversationalAgent, message: str):
     try:
         for item in agent.handle_message_stream(message):
             if isinstance(item, TurnResult):
+                if item.result_type == "offers" and item.results:
+                    cache_offers(item.results)
                 yield _sse(
                     {
                         "type": "done",

@@ -1,3 +1,4 @@
+import { useState } from "react";
 import type { ApiEmailListItem, ApiOfferResult } from "../../lib/api";
 import type { ChatResultType } from "../../types";
 import { formatTimestamp } from "../../lib/time";
@@ -6,6 +7,11 @@ import styles from "./ChatResultTable.module.css";
 interface ChatResultTableProps {
   resultType: ChatResultType;
   results: ApiOfferResult[] | ApiEmailListItem[];
+  /** Quand fourni, affiche une case à cocher par offre et une barre
+   * d'action "Préparer N CV" (candidature facile sur plusieurs offres à
+   * la fois) - omis par défaut (ex. CommandBar en variante "console",
+   * un simple aperçu sans fil de conversation où ajouter le résultat). */
+  onPrepareCvs?: (offers: { id: string; title: string }[]) => void;
 }
 
 function formatMailDate(value: string | null): string {
@@ -73,17 +79,51 @@ function offerSource(o: ApiOfferResult): string {
  * language as EventsTable (components/security/EventsTable.tsx) so it
  * reads as one system rather than a one-off style. Used by ChatMessage
  * whenever `resultType`/`results` are present on an AELYN turn. */
-export function ChatResultTable({ resultType, results }: ChatResultTableProps) {
+export function ChatResultTable({ resultType, results, onPrepareCvs }: ChatResultTableProps) {
+  // Un seul état de sélection pour toute la vie du composant : React lui
+  // donne une identité stable tant que la position dans l'arbre ne change
+  // pas (même si `results` change de contenu), donc pas besoin de la
+  // réinitialiser explicitement - un nouveau tableau de résultats a de
+  // toute façon de nouveaux `id`, les anciens cochés ne matcheraient rien.
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+
   if (results.length === 0) return null;
 
   if (resultType === "offers") {
     const offers = results as ApiOfferResult[];
+    const selectable = Boolean(onPrepareCvs);
+    const offersWithId = offers.filter((o) => Boolean(o.id));
+    const toggle = (id: string) => {
+      setSelected((prev) => {
+        const next = new Set(prev);
+        if (next.has(id)) next.delete(id);
+        else next.add(id);
+        return next;
+      });
+    };
+    const toggleAll = () => {
+      setSelected((prev) =>
+        prev.size === offersWithId.length ? new Set() : new Set(offersWithId.map((o) => o.id!))
+      );
+    };
     return (
       <div className={styles.wrap}>
         <div className={styles.scroll}>
           <table className={styles.table}>
             <thead>
               <tr>
+                {selectable ? (
+                  <th>
+                    {offersWithId.length > 0 ? (
+                      <input
+                        type="checkbox"
+                        checked={selected.size === offersWithId.length}
+                        onChange={toggleAll}
+                        aria-label="Tout sélectionner"
+                      />
+                    ) : null}
+                  </th>
+                ) : null}
                 <th>Poste</th>
                 <th>Entreprise</th>
                 <th>Lieu</th>
@@ -98,9 +138,22 @@ export function ChatResultTable({ resultType, results }: ChatResultTableProps) {
             <tbody>
               {offers.map((o, i) => {
                 const applyUrl = offerApplyUrl(o);
+                const title = o.intitule ?? o.title ?? "N/A";
                 return (
-                  <tr key={o.id ?? `${o.intitule ?? "offre"}-${i}`}>
-                    <td>{o.intitule ?? o.title ?? "N/A"}</td>
+                  <tr key={o.id ?? `${title}-${i}`}>
+                    {selectable ? (
+                      <td>
+                        {o.id ? (
+                          <input
+                            type="checkbox"
+                            checked={selected.has(o.id)}
+                            onChange={() => toggle(o.id!)}
+                            aria-label={`Sélectionner ${title}`}
+                          />
+                        ) : null}
+                      </td>
+                    ) : null}
+                    <td>{title}</td>
                     <td>{offerCompany(o)}</td>
                     <td>{offerLocation(o)}</td>
                     <td>{offerContract(o)}</td>
@@ -123,6 +176,24 @@ export function ChatResultTable({ resultType, results }: ChatResultTableProps) {
             </tbody>
           </table>
         </div>
+        {selectable && selected.size > 0 ? (
+          <div className={styles.bulkBar}>
+            <span>{selected.size} offre{selected.size > 1 ? "s" : ""} sélectionnée{selected.size > 1 ? "s" : ""}</span>
+            <button
+              type="button"
+              className={styles.bulkButton}
+              onClick={() => {
+                const chosen = offers
+                  .filter((o) => o.id && selected.has(o.id))
+                  .map((o) => ({ id: o.id!, title: o.intitule ?? o.title ?? "cette offre" }));
+                onPrepareCvs?.(chosen);
+                setSelected(new Set());
+              }}
+            >
+              Préparer {selected.size > 1 ? `${selected.size} CV` : "le CV"}
+            </button>
+          </div>
+        ) : null}
       </div>
     );
   }

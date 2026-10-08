@@ -61,3 +61,31 @@
   color: var(--text-secondary);
   white-space: nowrap;
 }
+
+.bulkBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  padding: var(--sp-1) var(--sp-2);
+  border-top: 1px solid var(--border-subtle);
+  background: var(--bg-panel-raised);
+  font-size: var(--fs-sm);
+  color: var(--text-secondary);
+}
+
+.bulkButton {
+  border: 1px solid var(--state-blue);
+  color: var(--state-blue);
+  background: transparent;
+  border-radius: var(--radius-sm);
+  padding: 4px var(--sp-2);
+  font-size: var(--fs-sm);
+  cursor: pointer;
+  transition: background var(--duration-fast) var(--ease-standard);
+}
+
+.bulkButton:hover {
+  background: var(--state-blue);
+  color: var(--bg-panel-raised);
+}

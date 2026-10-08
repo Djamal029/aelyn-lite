@@ -5,9 +5,10 @@ import { CommandBar } from "../components/commandbar/CommandBar";
 import { VoicePanel } from "../components/voice/VoicePanel";
 import type { InterpretedCommand } from "../lib/commandInterpreter";
 import type { ChatMessage } from "../types";
-import { getChatHistory, type ApiChatEntry } from "../lib/api";
+import { getCareerCv, getChatHistory, type ApiChatEntry } from "../lib/api";
 import { isBackendLive } from "../lib/backendStatus";
 import { useChatMessages } from "../lib/chatStore";
+import { formatCvAsText } from "../lib/cvFormat";
 import { useSpeechSynthesis } from "../lib/useSpeechSynthesis";
 import styles from "./Assistant.module.css";
 
@@ -181,6 +182,58 @@ export function Assistant() {
     setMessages((prev) => appendExchange(prev, userText, result, "voice"));
   };
 
+  // Candidature facile sur N offres (cf. ChatResultTable, bulk-select) :
+  // une seule confirmation visuelle (le tour utilisateur ci-dessous) pour
+  // tout le lot, les CV sont générés en parallèle (POST /career/{id}/cv
+  // est rapide - sélection déterministe par mots-clés, cf.
+  // application_writer.py - pas d'appel LLM lourd par offre comme avant).
+  // Un échec sur une offre n'empêche jamais les autres de s'afficher.
+  const handlePrepareCvs = (offers: { id: string; title: string }[]) => {
+    if (offers.length === 0) return;
+    const token = `cv-${nextId++}`;
+    const now = new Date().toISOString();
+    const userMsg: ChatMessage = {
+      id: `local-${token}-user`,
+      role: "user",
+      timestamp: now,
+      text:
+        offers.length > 1
+          ? `Prépare les CV pour : ${offers.map((o) => o.title).join(", ")}`
+          : `Prépare le CV pour ${offers[0].title}`,
+      via: "text",
+    };
+    const pendingMsg: ChatMessage = {
+      id: `local-${token}-aelyn`,
+      role: "aelyn",
+      timestamp: now,
+      text: "",
+      via: "text",
+      status: "executing",
+    };
+    setMessages((prev) => [...prev, userMsg, pendingMsg]);
+
+    (async () => {
+      const settled = await Promise.allSettled(offers.map((o) => getCareerCv(o.id)));
+      let anyOk = false;
+      const parts = settled.map((result, i) => {
+        const offer = offers[i];
+        if (result.status === "fulfilled") {
+          anyOk = true;
+          return `--- ${offer.title} ---\n${formatCvAsText(result.value)}`;
+        }
+        const message = result.reason instanceof Error ? result.reason.message : "erreur inconnue";
+        return `--- ${offer.title} ---\nÉchec : ${message}`;
+      });
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === `local-${token}-aelyn`
+            ? { ...m, text: parts.join("\n\n"), status: anyOk ? "done" : "error" }
+            : m
+        )
+      );
+    })();
+  };
+
   // While a voice exchange is active, the orb takes over this whole page
   // (ChatGPT-style voice mode: the text thread isn't what you're looking
   // at while talking) instead of VoicePanel sitting inline above it.
@@ -230,7 +283,7 @@ export function Assistant() {
       </div>
 
       <div className={styles.panelWrap}>
-        <ChatHistory messages={messages} />
+        <ChatHistory messages={messages} onPrepareCvs={handlePrepareCvs} />
         <CommandBar
           variant="chatInput"
           placeholder="Écris à AELYN…"

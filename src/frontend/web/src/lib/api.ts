@@ -189,15 +189,27 @@ export interface ApiCareerOffer {
   score?: number;
 }
 
+export interface ApiCvExperience {
+  role: string;
+  entreprise: string;
+  periode: string;
+  puces: string[];
+}
+
+export interface ApiCvProjet {
+  titre: string;
+  description: string;
+}
+
 export interface ApiCvContent {
   profil: string;
-  experiences: unknown[];
-  projets: unknown[];
-  competences: Record<string, unknown>;
-  formation: unknown[];
-  certifications: unknown[];
-  langues: unknown[];
-  centres_interet: unknown[];
+  experiences: ApiCvExperience[];
+  projets: ApiCvProjet[];
+  competences: Record<string, string[]>;
+  formation: string[];
+  certifications: string[];
+  langues: string[];
+  centres_interet: string[];
 }
 
 /** The shape of a single item in POST /chat/message's `results` when

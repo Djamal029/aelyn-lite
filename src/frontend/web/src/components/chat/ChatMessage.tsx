@@ -25,7 +25,12 @@ const STATUS_CLASS: Record<NonNullable<ChatMessageT["status"]>, string> = {
  * understood (the routed intent) before the result text, mirroring the
  * real backend's transparency (`intent.reformulation` said before
  * `_run_command` executes, in conversational-agent/agent.py). */
-export function ChatMessage({ message }: { message: ChatMessageT }) {
+interface ChatMessageProps {
+  message: ChatMessageT;
+  onPrepareCvs?: (offers: { id: string; title: string }[]) => void;
+}
+
+export function ChatMessage({ message, onPrepareCvs }: ChatMessageProps) {
   const isAelyn = message.role === "aelyn";
   const hasTable = Boolean(message.resultType && message.results && message.results.length > 0);
   // When a real table is rendered below, `text` (whether the backend's
@@ -56,7 +61,13 @@ export function ChatMessage({ message }: { message: ChatMessageT }) {
           <div className={styles.text}>{displayText}</div>
         )}
 
-        {hasTable ? <ChatResultTable resultType={message.resultType!} results={message.results!} /> : null}
+        {hasTable ? (
+          <ChatResultTable
+            resultType={message.resultType!}
+            results={message.results!}
+            onPrepareCvs={message.resultType === "offers" ? onPrepareCvs : undefined}
+          />
+        ) : null}
 
         {isAelyn && message.status && !(message.status === "executing" && !message.text) ? (
           <div className={[styles.statusRow, STATUS_CLASS[message.status]].join(" ")}>
