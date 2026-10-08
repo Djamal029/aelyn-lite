@@ -8,10 +8,12 @@ interface ChatResultTableProps {
   resultType: ChatResultType;
   results: ApiOfferResult[] | ApiEmailListItem[];
   /** Quand fourni, affiche une case à cocher par offre et une barre
-   * d'action "Préparer N CV" (candidature facile sur plusieurs offres à
-   * la fois) - omis par défaut (ex. CommandBar en variante "console",
-   * un simple aperçu sans fil de conversation où ajouter le résultat). */
+   * d'action "Préparer N CV" / "Préparer N lettres" (candidature facile
+   * sur plusieurs offres à la fois) - omis par défaut (ex. CommandBar en
+   * variante "console", un simple aperçu sans fil de conversation où
+   * ajouter le résultat). */
   onPrepareCvs?: (offers: { id: string; title: string }[]) => void;
+  onPrepareCoverLetters?: (offers: { id: string; title: string }[]) => void;
 }
 
 function formatMailDate(value: string | null): string {
@@ -79,7 +81,7 @@ function offerSource(o: ApiOfferResult): string {
  * language as EventsTable (components/security/EventsTable.tsx) so it
  * reads as one system rather than a one-off style. Used by ChatMessage
  * whenever `resultType`/`results` are present on an AELYN turn. */
-export function ChatResultTable({ resultType, results, onPrepareCvs }: ChatResultTableProps) {
+export function ChatResultTable({ resultType, results, onPrepareCvs, onPrepareCoverLetters }: ChatResultTableProps) {
   // Un seul état de sélection pour toute la vie du composant : React lui
   // donne une identité stable tant que la position dans l'arbre ne change
   // pas (même si `results` change de contenu), donc pas besoin de la
@@ -91,8 +93,12 @@ export function ChatResultTable({ resultType, results, onPrepareCvs }: ChatResul
 
   if (resultType === "offers") {
     const offers = results as ApiOfferResult[];
-    const selectable = Boolean(onPrepareCvs);
+    const selectable = Boolean(onPrepareCvs || onPrepareCoverLetters);
     const offersWithId = offers.filter((o) => Boolean(o.id));
+    const chosenOffers = () =>
+      offers
+        .filter((o) => o.id && selected.has(o.id))
+        .map((o) => ({ id: o.id!, title: o.intitule ?? o.title ?? "cette offre" }));
     const toggle = (id: string) => {
       setSelected((prev) => {
         const next = new Set(prev);
@@ -179,19 +185,30 @@ export function ChatResultTable({ resultType, results, onPrepareCvs }: ChatResul
         {selectable && selected.size > 0 ? (
           <div className={styles.bulkBar}>
             <span>{selected.size} offre{selected.size > 1 ? "s" : ""} sélectionnée{selected.size > 1 ? "s" : ""}</span>
-            <button
-              type="button"
-              className={styles.bulkButton}
-              onClick={() => {
-                const chosen = offers
-                  .filter((o) => o.id && selected.has(o.id))
-                  .map((o) => ({ id: o.id!, title: o.intitule ?? o.title ?? "cette offre" }));
-                onPrepareCvs?.(chosen);
-                setSelected(new Set());
-              }}
-            >
-              Préparer {selected.size > 1 ? `${selected.size} CV` : "le CV"}
-            </button>
+            {onPrepareCvs ? (
+              <button
+                type="button"
+                className={styles.bulkButton}
+                onClick={() => {
+                  onPrepareCvs(chosenOffers());
+                  setSelected(new Set());
+                }}
+              >
+                Préparer {selected.size > 1 ? `${selected.size} CV` : "le CV"}
+              </button>
+            ) : null}
+            {onPrepareCoverLetters ? (
+              <button
+                type="button"
+                className={styles.bulkButton}
+                onClick={() => {
+                  onPrepareCoverLetters(chosenOffers());
+                  setSelected(new Set());
+                }}
+              >
+                Préparer {selected.size > 1 ? `${selected.size} lettres` : "la lettre"}
+              </button>
+            ) : null}
           </div>
         ) : null}
       </div>

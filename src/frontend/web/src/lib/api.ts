@@ -281,6 +281,10 @@ export function getCareerCv(offerId: string): Promise<ApiCvContent> {
   return request(`/career/${offerId}/cv`, { method: "POST", timeoutMs: 150_000 });
 }
 
+export function getCareerCoverLetter(offerId: string): Promise<{ text: string }> {
+  return request(`/career/${offerId}/lm`, { method: "POST", timeoutMs: 150_000 });
+}
+
 // ---- Media (TV) -------------------------------------------------------
 
 export type MediaAction =

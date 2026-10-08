@@ -21,12 +21,13 @@ interface ChatHistoryProps {
   /** Passé jusqu'à ChatResultTable (cf. son docstring) : candidature
    * facile sur plusieurs offres sélectionnées dans un tableau affiché. */
   onPrepareCvs?: (offers: { id: string; title: string }[]) => void;
+  onPrepareCoverLetters?: (offers: { id: string; title: string }[]) => void;
 }
 
 /** Full, searchable conversation history: spans more than the current
  * session (see mocks/chat.ts), grouped by day like a real persisted
  * transcript rather than a single ephemeral scroll of bubbles. */
-export function ChatHistory({ messages, followLatest = true, onPrepareCvs }: ChatHistoryProps) {
+export function ChatHistory({ messages, followLatest = true, onPrepareCvs, onPrepareCoverLetters }: ChatHistoryProps) {
   const [query, setQuery] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -79,7 +80,7 @@ export function ChatHistory({ messages, followLatest = true, onPrepareCvs }: Cha
             <div key={label}>
               <div className={styles.daySeparator}>{label}</div>
               {msgs.map((m) => (
-                <ChatMessage key={m.id} message={m} onPrepareCvs={onPrepareCvs} />
+                <ChatMessage key={m.id} message={m} onPrepareCvs={onPrepareCvs} onPrepareCoverLetters={onPrepareCoverLetters} />
               ))}
             </div>
           ))
