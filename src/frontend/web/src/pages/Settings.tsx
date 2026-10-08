@@ -358,9 +358,8 @@ export function Settings() {
 
       <div className={styles.notice}>
         {live
-          ? "Connecté à AELYN Core (aelyn-api) : les champs marqués LIVE viennent de GET /settings ; le reste reflète src/backend/.env.example (pas encore exposé par l'API)."
-          : "AELYN Core (aelyn-api) injoignable sur " +
-            "cette machine, valeurs d'exemple depuis src/backend/.env.example. Lance `uv run uvicorn aelyn_api.main:app --reload` depuis src/backend pour voir les valeurs réelles."}
+          ? "Connecté à AELYN Core. Les champs marqués LIVE reflètent la configuration réelle de ton installation ; les autres affichent des valeurs d'exemple en attendant d'être pris en charge."
+          : "AELYN Core est injoignable sur cette machine : les valeurs affichées ci-dessous sont des exemples. Démarre le service backend pour voir ta configuration réelle."}
       </div>
 
       <Panel
@@ -392,7 +391,7 @@ export function Settings() {
           <form className={styles.lockForm} onSubmit={handleUnlock}>
             <p className={styles.lockHint}>
               {live
-                ? "Toute modification d'un réglage nécessite une passkey, vérifiée par AELYN Core (POST /settings/auth)."
+                ? "Toute modification d'un réglage nécessite une passkey, vérifiée par AELYN Core."
                 : "AELYN Core injoignable, passkey vérifiée localement (démo hors-ligne uniquement)."}
             </p>
             <div className={styles.lockRow}>
