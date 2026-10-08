@@ -14,6 +14,29 @@ from typing import Any
 import requests
 
 
+def _looks_like_mojibake(text: str | None) -> bool:
+    """Détecte un texte UTF-8 mal décodé (observé en pratique sur des
+    offres RemoteOK en arabe : `location` renvoyée corrompue par l'API
+    elle-même, pas par notre traitement). Heuristique : une densité
+    anormalement haute de caractères U+00C2-U+00DF, la plage des
+    premiers octets UTF-8 à deux octets mal réinterprétés un par un.
+    Un texte légitime (même accentué, ex. "Düsseldorf") n'approche
+    jamais ce seuil."""
+    if not text:
+        return False
+    suspicious = sum(1 for ch in text if 0xC2 <= ord(ch) <= 0xDF)
+    return suspicious / len(text) > 0.15
+
+
+def clean_text(text: str | None) -> str | None:
+    """Supprime un champ texte corrompu plutôt que de l'afficher tel
+    quel : la tentative de réparation (ré-encoder en latin-1 puis
+    redécoder en UTF-8) échoue elle-même sur ce cas réel (perte
+    d'information côté source), donc mieux vaut l'absence d'info qu'un
+    charabia affiché à l'utilisateur."""
+    return None if _looks_like_mojibake(text) else text
+
+
 class BaseSourceAdapter:
     name: str = "base"
 
@@ -186,9 +209,9 @@ class RemoteOKAdapter(BaseSourceAdapter):
         return [{
             "id": f"remoteok:{job.get('id')}",
             "source": "remoteok",
-            "title": job.get("position"),
-            "company": job.get("company"),
-            "location": job.get("location") or "Remote",
+            "title": clean_text(job.get("position")),
+            "company": clean_text(job.get("company")),
+            "location": clean_text(job.get("location")) or "Remote",
             "contract_type": "UNKNOWN",
             "description": job.get("description"),
             "url": job.get("url"),
