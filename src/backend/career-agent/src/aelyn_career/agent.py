@@ -10,11 +10,14 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
+from aelyn.core.config import settings
+from aelyn.core.journal import ActionStatus, Journal
 from aelyn_career.france_travail.offers import FTOffers
 from aelyn_career.pipeline import find_best_matches
 
 
 DEFAULT_OFFERS_LIMIT = 10
+_AGENT_NAME = "career"
 
 # Noms d'affichage propres pour les sources d'offres : les adaptateurs
 # (source_adapters.py) stockent l'identifiant technique en minuscules
@@ -45,7 +48,8 @@ def _format_posted_date(value: object) -> str | None:
     text = str(value).strip()
     if text.isdigit() and len(text) >= 9:
         try:
-            return datetime.fromtimestamp(int(text), tz=timezone.utc).strftime("%d/%m/%Y")
+            dt = datetime.fromtimestamp(int(text), tz=timezone.utc)
+            return dt.strftime("%d/%m/%Y")
         except (ValueError, OSError, OverflowError):
             return None
     try:
@@ -103,17 +107,62 @@ def run_command(
         )
         for offre in offres:
             company = offre.get("entreprise") or offre.get("company") or {}
-            entreprise = (company.get("nom") or company.get("name")) if isinstance(company, dict) else company
-            location = offre.get("lieuTravail") or offre.get("location") or offre.get("lieu") or {}
-            lieu = (location.get("libelle") or location.get("city")) if isinstance(location, dict) else location
+            entreprise = (
+                (company.get("nom") or company.get("name"))
+                if isinstance(company, dict)
+                else company
+            )
+            location = (
+                offre.get("lieuTravail")
+                or offre.get("location")
+                or offre.get("lieu")
+                or {}
+            )
+            lieu = (
+                (location.get("libelle") or location.get("city"))
+                if isinstance(location, dict)
+                else location
+            )
             contrat = offre.get("typeContrat") or offre.get("contract_type") or "?"
             contrat_part = f" | {contrat}" if contrat not in ("?", "UNKNOWN") else ""
             pct = round(offre["score"] * 100)
-            titre = offre.get("intitule") or offre.get("title") or "Offre sans intitulé"
+            titre = (
+                offre.get("intitule") or offre.get("title") or "Offre sans intitulé"
+            )
             source = _source_label(offre.get("source") or "France Travail")
-            publication = _format_posted_date(offre.get("dateCreation") or offre.get("posted_at"))
+            publication = _format_posted_date(
+                offre.get("dateCreation") or offre.get("posted_at")
+            )
             date_part = f" | publiée le {publication}" if publication else ""
-            print(f"- [{pct}%] {titre} | {entreprise or '?'} | {lieu or '?'}{contrat_part} | {source}{date_part}")
+            print(
+                f"- [{pct}%] {titre} | {entreprise or '?'} | {lieu or '?'}"
+                f"{contrat_part} | {source}{date_part}"
+            )
+
+        # Sans cet enregistrement, une recherche d'offres n'apparaissait
+        # jamais dans le Journal/la page Activité (contrairement au mail) :
+        # seul le structurage LLM d'une offre individuelle (llm_structurer.py,
+        # bien plus rare) y laissait une trace avec agent="career", donc
+        # filtrer par "Carrière" ne montrait presque jamais rien. Confirmé
+        # que ce n'est pas la cause d'une lenteur observée en parallèle :
+        # `find_best_matches` recharge seul son modèle d'embeddings a
+        # chaque appel (~17s) et structure chaque offre neuve via LLM
+        # (~4s/offre), largement suffisant pour expliquer 1-2 minutes sur
+        # un mot-clé jamais cherché, sans aucun rapport avec cet ajout.
+        Journal(settings.journal_path).record(
+            agent=_AGENT_NAME,
+            action="chercher_offres",
+            summary=(
+                f"{len(offres)} offre(s) trouvée(s)"
+                + (f" pour « {mots_cles} »" if mots_cles else "")
+            ),
+            status=ActionStatus.EXECUTED,
+            payload={
+                "mots_cles": mots_cles,
+                "contract_type": contract_type,
+                "count": len(offres),
+            },
+        )
         return 0, offres
 
     return 1, []

@@ -1,3 +1,15 @@
+.wrap {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+.gaugeGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(72px, 72px));
+  gap: var(--sp-5);
+}
+
 .row {
   display: flex;
   flex-wrap: wrap;

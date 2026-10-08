@@ -25,7 +25,11 @@ export function TopBar({ onMenuClick }: TopBarProps) {
     <header className={styles.bar}>
       <div className={styles.left}>
         <button className={styles.menuButton} onClick={onMenuClick} type="button" aria-label="Ouvrir le menu">
-          <span className={styles.menuIcon} />
+          <span className={styles.menuIcon}>
+            <span />
+            <span />
+            <span />
+          </span>
         </button>
         <span className={styles.brand}>AELYN</span>
         <span className={styles.status}>

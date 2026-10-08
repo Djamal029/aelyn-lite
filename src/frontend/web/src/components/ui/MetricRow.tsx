@@ -23,26 +23,41 @@ export interface MetricItem {
 }
 
 export function MetricRow({ items }: { items: MetricItem[] }) {
+  // Jauges (anneaux, taille fixe) et métriques en texte simple (ex.
+  // RÉSEAU, sans borne 0..max naturelle) ne se mélangent pas dans la même
+  // rangée flex : une fois plusieurs disques ajoutés, le dernier item
+  // texte se retrouvait coincé à côté d'un reste de jauges mal aligné.
+  // Une vraie grille pour les jauges (lignes complètes, toujours même
+  // taille) + une rangée de texte séparée en dessous résout ça.
+  const gaugeItems = items.filter((item) => item.gauge);
+  const plainItems = items.filter((item) => !item.gauge);
   return (
-    <div className={styles.row}>
-      {items.map((item) =>
-        item.gauge ? (
-          <RadialGauge
-            key={item.label}
-            label={item.label}
-            percent={(item.gauge.value / item.gauge.max) * 100}
-            displayValue={item.value}
-            color={STATE_COLOR[item.state ?? "normal"]}
-          />
-        ) : (
-          <div className={styles.item} key={item.label}>
-            <span className={styles.label}>{item.label}</span>
-            <span className={[styles.value, item.state && item.state !== "normal" ? styles[item.state] : ""].join(" ")}>
-              {item.value}
-            </span>
-          </div>
-        )
-      )}
+    <div className={styles.wrap}>
+      {gaugeItems.length > 0 ? (
+        <div className={styles.gaugeGrid}>
+          {gaugeItems.map((item) => (
+            <RadialGauge
+              key={item.label}
+              label={item.label}
+              percent={(item.gauge!.value / item.gauge!.max) * 100}
+              displayValue={item.value}
+              color={STATE_COLOR[item.state ?? "normal"]}
+            />
+          ))}
+        </div>
+      ) : null}
+      {plainItems.length > 0 ? (
+        <div className={styles.row}>
+          {plainItems.map((item) => (
+            <div className={styles.item} key={item.label}>
+              <span className={styles.label}>{item.label}</span>
+              <span className={[styles.value, item.state && item.state !== "normal" ? styles[item.state] : ""].join(" ")}>
+                {item.value}
+              </span>
+            </div>
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }
