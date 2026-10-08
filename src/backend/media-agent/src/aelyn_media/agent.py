@@ -71,7 +71,16 @@ class MediaAgent:
         print(f"Texte envoyé : {text}")
 
     def play_pause(self) -> None:
+        # MEDIA_PLAY_PAUSE est le signal "correct", mais Netflix et YouTube
+        # sur Freebox Pop ne l'honorent pas de manière fiable (constaté en
+        # usage réel) : beaucoup d'apps Android TV ne câblent play/pause
+        # qu'au clic OK/Entrée du lecteur (DPAD_CENTER), comme avec une
+        # vraie télécommande. On envoie les deux : le signal dédié d'abord
+        # (sans effet néfaste s'il est ignoré), puis OK en repli pour les
+        # apps qui ne gèrent que ça.
         self.remote.send_key_command("MEDIA_PLAY_PAUSE")
+        time.sleep(0.15)
+        self.remote.send_key_command("DPAD_CENTER")
 
     def next(self) -> None:
         self.remote.send_key_command("MEDIA_NEXT")
