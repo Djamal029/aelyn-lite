@@ -1,20 +1,14 @@
 import { useEffect, useState } from "react";
-import { ApiError, getSystemResources, type SystemResources } from "../lib/api";
+import { ApiError, getSystemResources } from "../lib/api";
 import { Panel } from "../components/ui/Panel";
 import { RadialGauge } from "../components/ui/RadialGauge";
 import { Sparkline } from "../components/ui/Sparkline";
 import type { TimeSeriesPoint } from "../types";
+import { useResourcesState, type ResourceSample } from "../lib/resourcesStore";
 import styles from "./Data.module.css";
 
 const REFRESH_MS = 15_000;
 const MAX_SAMPLES = 48;
-
-interface ResourceSample {
-  time: string;
-  cpu: number;
-  ram: number;
-  gpu?: number;
-}
 
 function formatMemory(mb: number): string {
   if (mb < 1024) return `${Math.round(mb)} Mo`;
@@ -35,10 +29,12 @@ function chartPoints(samples: ResourceSample[], key: "cpu" | "ram" | "gpu"): Tim
 }
 
 export function Data() {
-  const [resources, setResources] = useState<SystemResources | null>(null);
-  const [samples, setSamples] = useState<ResourceSample[]>([]);
-  const [updatedAt, setUpdatedAt] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [{ resources, samples, updatedAt }, setResourcesState] = useResourcesState();
+  // `loading` ne doit être vrai qu'au tout premier chargement de l'app
+  // (rien en mémoire) : sur une revisite de la page, le store a déjà le
+  // dernier relevé connu, donc l'écran "Aucune mesure disponible" ne doit
+  // plus jamais réapparaître juste parce que le composant a été démonté.
+  const [loading, setLoading] = useState(resources === null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -52,17 +48,19 @@ export function Data() {
         const latest = await getSystemResources();
         if (cancelled) return;
         const now = new Date();
-        setResources(latest);
-        setUpdatedAt(now.toLocaleTimeString("fr-FR"));
-        setSamples((previous) => [
-          ...previous,
-          {
-            time: now.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" }),
-            cpu: latest.cpu_percent,
-            ram: latest.ram.percent,
-            ...(latest.gpu.available ? { gpu: latest.gpu.utilization_percent } : {}),
-          },
-        ].slice(-MAX_SAMPLES));
+        setResourcesState((prev) => ({
+          resources: latest,
+          updatedAt: now.toLocaleTimeString("fr-FR"),
+          samples: [
+            ...prev.samples,
+            {
+              time: now.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" }),
+              cpu: latest.cpu_percent,
+              ram: latest.ram.percent,
+              ...(latest.gpu.available ? { gpu: latest.gpu.utilization_percent } : {}),
+            },
+          ].slice(-MAX_SAMPLES),
+        }));
         setError(null);
       } catch (err) {
         if (!cancelled) {
@@ -80,6 +78,7 @@ export function Data() {
       cancelled = true;
       window.clearInterval(timer);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const cpuTrend = chartPoints(samples, "cpu");
