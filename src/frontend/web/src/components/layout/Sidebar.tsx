@@ -9,6 +9,7 @@ const ALL_NAV_ITEMS = [
   { path: "/cameras", label: "Caméras" },
   { path: "/security", label: "Sécurité" },
   { path: "/assistant", label: "Assistant" },
+  { path: "/commandes", label: "Commandes" },
   { path: "/data", label: "Données" },
   { path: "/activity", label: "Journal" },
   { path: "/system", label: "Système" },

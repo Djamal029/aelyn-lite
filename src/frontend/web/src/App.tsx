@@ -4,6 +4,7 @@ import { Overview } from "./pages/Overview";
 import { Cameras } from "./pages/Cameras";
 import { Security } from "./pages/Security";
 import { Assistant } from "./pages/Assistant";
+import { Commands } from "./pages/Commands";
 import { Data } from "./pages/Data";
 import { Activity } from "./pages/Activity";
 import { System } from "./pages/System";
@@ -22,6 +23,7 @@ export default function App() {
           <Route path="cameras" element={LITE_MODE ? <Navigate to="/" replace /> : <Cameras />} />
           <Route path="security" element={LITE_MODE ? <Navigate to="/" replace /> : <Security />} />
           <Route path="assistant" element={<Assistant />} />
+          <Route path="commandes" element={<Commands />} />
           <Route path="data" element={<Data />} />
           <Route path="activity" element={<Activity />} />
           <Route path="system" element={<System />} />

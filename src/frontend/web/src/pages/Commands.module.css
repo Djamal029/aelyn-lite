@@ -1,0 +1,73 @@
+.page {
+  padding: var(--sp-3);
+  height: 100%;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.header {
+  margin-bottom: var(--sp-4);
+}
+
+.title {
+  font-size: var(--fs-lg);
+  font-weight: 600;
+}
+
+.subtitle {
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+  max-width: 640px;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: var(--sp-3);
+  align-items: start;
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.groupNote {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  margin-bottom: var(--sp-1);
+}
+
+.row {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--sp-2) 0;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.row:last-child {
+  border-bottom: none;
+}
+
+.phrase {
+  font-size: var(--fs-base);
+  color: var(--text-primary);
+  font-weight: 560;
+}
+
+.phrase::before {
+  content: "\201C";
+  color: var(--text-muted);
+}
+
+.phrase::after {
+  content: "\201D";
+  color: var(--text-muted);
+}
+
+.desc {
+  font-size: var(--fs-xs);
+  color: var(--text-secondary);
+}
