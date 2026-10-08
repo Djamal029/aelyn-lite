@@ -1,41 +1,40 @@
 # AELYN — Direction de design frontend
 
 Ce document fixe la direction visuelle et fonctionnelle du frontend AELYN
-(web puis mobile). Objectif : un vrai poste de contrôle opérationnel —
-pas un "dashboard IA" générique.
+(web puis mobile). L’interface doit rester un vrai poste de contrôle
+opérationnel, tout en étant douce, chaleureuse et agréable au quotidien.
 
 ## Principe directeur
 
-**AELYN doit ressembler à un produit logiciel de monitoring qui existe
-depuis 3 ans, avec de vrais utilisateurs, des contraintes opérationnelles
-réelles, de vrais logs, de vraies erreurs, de vrais réglages — pas à une
-interface générée par IA.**
-
-Références : consoles de monitoring professionnelles (NOC/SOC), outils
-réseau, outils développeur, applications de contrôle caméra — pas des
-dashboards IA génériques.
+**AELYN doit être un assistant personnel fiable présenté dans un écrin
+calme et lumineux : clarté éditoriale et composition inspirées des
+références Dribbble/Pinterest, avec un accent d’instrumentation discret
+évoquant JARVIS.** Les données et les états restent réels, lisibles et
+fonctionnels ; le style ne doit jamais les travestir.
 
 ### À éviter systématiquement
 
-- Glassmorphism excessif, cartes flottantes translucides
+- Glassmorphism excessif ou surfaces illisibles
 - Dégradés néon violet/bleu
 - Bordures lumineuses ("glow") décoratives
-- Grandes sections hero, objets 3D décoratifs
+- Objets 3D et illustrations sans rôle fonctionnel
 - Statistiques sans signification réelle
-- Typographie surdimensionnée
+- Typographie surdimensionnée ou difficile à lire
 - Effets "magie IA" génériques
-- Cartes arrondies à outrance, dashboard composé uniquement de cartes indépendantes
+- Cartes uniformes à outrance ou dashboard composé uniquement de cartes indépendantes
 - Faux graphiques purement décoratifs
 - Emojis aléatoires, avatar robot/IA générique
 - Illustrations superflues
-- Apparence "concept Dribbble"
+- Accumulation d’effets de maquette au détriment de la lisibilité
 
 **Chaque élément doit exister parce que l'utilisateur peut observer
 quelque chose, comprendre quelque chose, ou agir sur quelque chose.**
 
 ## Style visuel
 
-- Fond neutre sombre, couleurs d'accent restreintes.
+- Fond clair ivoire, panneaux porcelaine, surfaces secondaires sauge/gris chaud.
+- Une touche lavande/pervenche identifie l’assistant et la sélection ; l’ambre
+  et le vert restent réservés aux états pertinents.
 - La couleur communique un **état**, jamais une décoration :
   - neutre = information
   - vert = opérationnel
@@ -43,12 +42,13 @@ quelque chose, comprendre quelque chose, ou agir sur quelque chose.**
   - rouge = critique
   - bleu = actif / sélectionné
 - Typographie à forte hiérarchie, très lisible.
-- Bordures fines, séparateurs, élévation de surface subtile — pas
-  d'ombres lourdes ni d'effets verre.
+- Bordures fines, coins doux et ombres légères — pas d’ombres lourdes ni
+  d’effets verre.
 - Contrôles compacts : tables, timelines, logs, panneaux vidéo,
   indicateurs d'état.
-- Densité suffisante pour ressembler à un logiciel utilisé tous les
-  jours, pas à une page de présentation.
+- Composition éditoriale, légèrement asymétrique, avec une hiérarchie
+  immédiatement compréhensible ; garder les cartes compactes sur tablette
+  et petit desktop (autour de 1100 px).
 - Contenu réaliste (jamais de lorem ipsum) — mais aucune fonctionnalité
   inventée qui n'existe pas réellement dans AELYN.
 
