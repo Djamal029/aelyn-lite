@@ -24,12 +24,23 @@ function buildMetricItems(node: NodeStatus, networkTotal: string | null): Metric
       gauge: { value: node.tempC, max: 100 },
     });
   }
-  items.push({
-    label: "DISQUE",
-    value: `${node.diskPercent}%`,
-    state: thresholdState(node.diskPercent, 80, 95),
-    gauge: { value: node.diskPercent, max: 100 },
-  });
+  if (node.disks && node.disks.length > 0) {
+    for (const disk of node.disks) {
+      items.push({
+        label: `DISQUE ${disk.mountpoint.replace(/[\\/]+$/, "")}`,
+        value: `${disk.percent}%`,
+        state: thresholdState(disk.percent, 80, 95),
+        gauge: { value: disk.percent, max: 100 },
+      });
+    }
+  } else {
+    items.push({
+      label: "DISQUE",
+      value: `${node.diskPercent}%`,
+      state: thresholdState(node.diskPercent, 80, 95),
+      gauge: { value: node.diskPercent, max: 100 },
+    });
+  }
   items.push({ label: "RÉSEAU", value: networkTotal ? `${networkTotal} cumulés` : `${node.netMbps} Mb/s` });
   return items;
 }

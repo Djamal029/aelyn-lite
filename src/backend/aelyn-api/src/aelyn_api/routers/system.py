@@ -232,6 +232,34 @@ def system_status() -> dict:
     }
 
 
+def _all_disks() -> list[dict]:
+    """Un disque par partition montée réellement accessible, pas
+    seulement celle où vit AELYN : observé en usage réel, une machine
+    avec plusieurs disques (C:, D:, E:...) ne montrait jusqu'ici que
+    celui du dossier de données, ce qui ne reflète pas l'espace
+    disponible ailleurs. Un lecteur amovible sans média, ou une
+    partition inaccessible, est silencieusement ignoré plutôt que de
+    faire échouer toute la route (`disk_usage` lève sur un CD-ROM
+    vide par exemple)."""
+    disks = []
+    seen_mountpoints = set()
+    for part in psutil.disk_partitions(all=False):
+        if part.mountpoint in seen_mountpoints:
+            continue
+        seen_mountpoints.add(part.mountpoint)
+        try:
+            usage = psutil.disk_usage(part.mountpoint)
+        except OSError:
+            continue
+        disks.append({
+            "mountpoint": part.mountpoint,
+            "percent": usage.percent,
+            "used_gb": round(usage.used / 1_000_000_000, 1),
+            "total_gb": round(usage.total / 1_000_000_000, 1),
+        })
+    return disks
+
+
 @router.get("/resources")
 def system_resources() -> dict:
     """Mesures système seules, sans appels IMAP/France Travail/Ollama.
@@ -257,6 +285,7 @@ def system_resources() -> dict:
             "used_gb": round(disk.used / 1_000_000_000, 1),
             "total_gb": round(disk.total / 1_000_000_000, 1),
         },
+        "disks": _all_disks(),
         "gpu": _gpu_status(),
         "network": {
             "bytes_sent": net.bytes_sent,

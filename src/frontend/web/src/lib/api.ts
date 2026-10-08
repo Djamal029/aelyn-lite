@@ -510,6 +510,7 @@ export interface SystemResources {
   cpu_temp_celsius: { value: number | null; available: boolean; reason?: string };
   ram: { percent: number; used_mb: number; total_mb: number };
   disk: { percent: number; used_gb: number; total_gb: number };
+  disks: { mountpoint: string; percent: number; used_gb: number; total_gb: number }[];
   gpu:
     | {
         available: true;

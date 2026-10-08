@@ -74,6 +74,7 @@ export function coreNodeFromStatus(status: SystemStatus, label: string, role: st
     ramPercent: Math.round(r.ram.percent),
     tempC: r.cpu_temp_celsius.available ? Math.round(r.cpu_temp_celsius.value ?? 0) : null,
     diskPercent: Math.round(r.disk.percent),
+    disks: r.disks.map((d) => ({ mountpoint: d.mountpoint, percent: Math.round(d.percent) })),
     // No instantaneous rate is possible from one cumulative-counter
     // sample (the endpoint is explicit about this); 0 here is a real
     // "not measured this way" rather than a fabricated reading, and

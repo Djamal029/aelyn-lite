@@ -44,12 +44,27 @@ export function Overview() {
       gauge: { value: core.tempC, max: 100 },
     });
   }
-  metricItems.push({
-    label: "DISQUE",
-    value: `${core.diskPercent}%`,
-    state: thresholdState(core.diskPercent, 80, 95),
-    gauge: { value: core.diskPercent, max: 100 },
-  });
+  // Un disque par partition réelle (C:, D:, E:...) quand on les connaît :
+  // une seule jauge "DISQUE" ne reflétait que celui où vit AELYN, pas le
+  // reste d'une machine à plusieurs disques. Repli sur l'ancienne jauge
+  // unique pour le mock (hors-ligne), qui n'a pas cette liste.
+  if (core.disks && core.disks.length > 0) {
+    for (const disk of core.disks) {
+      metricItems.push({
+        label: `DISQUE ${disk.mountpoint.replace(/[\\/]+$/, "")}`,
+        value: `${disk.percent}%`,
+        state: thresholdState(disk.percent, 80, 95),
+        gauge: { value: disk.percent, max: 100 },
+      });
+    }
+  } else {
+    metricItems.push({
+      label: "DISQUE",
+      value: `${core.diskPercent}%`,
+      state: thresholdState(core.diskPercent, 80, 95),
+      gauge: { value: core.diskPercent, max: 100 },
+    });
+  }
   // Live: a real cumulative transfer total (see lib/systemStatus.ts for
   // why this can't honestly be an instantaneous rate). Mock: the old
   // flat placeholder rate.

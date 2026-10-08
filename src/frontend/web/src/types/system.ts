@@ -19,6 +19,10 @@ export interface NodeStatus {
    * rather than a fabricated number, never default this to 0. */
   tempC: number | null;
   diskPercent: number;
+  /** One entry per real mounted disk (`GET /system/resources`), `null`
+   * on the mock: a machine can have several drives, and `diskPercent`
+   * alone only ever reflected the one AELYN's own data lives on. */
+  disks: { mountpoint: string; percent: number }[] | null;
   netMbps: number;
   tailscale: ConnectivityState;
   uptime: string;

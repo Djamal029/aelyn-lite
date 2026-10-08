@@ -84,6 +84,54 @@ class TestSystemResources:
         assert data["gpu"]["available"] is False
         assert isinstance(data["uptime_seconds"], int)
 
+    def test_resource_snapshot_lists_every_mounted_disk(self, monkeypatch) -> None:
+        import aelyn_api.routers.system as system
+
+        class Memory:
+            percent = 42.0
+            used = 4_200_000_000
+            total = 10_000_000_000
+
+        class Network:
+            bytes_sent = 1_000
+            bytes_recv = 2_000
+
+        class Partition:
+            def __init__(self, mountpoint: str) -> None:
+                self.mountpoint = mountpoint
+
+        class Usage:
+            def __init__(self, percent: float) -> None:
+                self.percent = percent
+                self.used = int(percent * 1_000_000_000)
+                self.total = 100_000_000_000
+
+        usage_by_mount = {"C:\\": Usage(98.1), "D:\\": Usage(46.7)}
+
+        def unexpected_service_call():
+            raise AssertionError("La route ressources ne doit pas tester les services")
+
+        monkeypatch.setattr(system.psutil, "cpu_percent", lambda interval: 17.0)
+        monkeypatch.setattr(system.psutil, "virtual_memory", lambda: Memory())
+        monkeypatch.setattr(system.psutil, "disk_usage", lambda path: usage_by_mount[path])
+        monkeypatch.setattr(
+            system.psutil, "disk_partitions", lambda all=False: [Partition("C:\\"), Partition("D:\\")]
+        )
+        monkeypatch.setattr(system.psutil, "net_io_counters", lambda: Network())
+        monkeypatch.setattr(system, "_cpu_temp_celsius", lambda: {"available": False, "value": None})
+        monkeypatch.setattr(system, "_gpu_status", lambda: {"available": False, "reason": "test"})
+        monkeypatch.setattr(system, "_imap_status", unexpected_service_call)
+        monkeypatch.setattr(system, "_france_travail_status", unexpected_service_call)
+        monkeypatch.setattr(system, "ollama_status", unexpected_service_call)
+
+        response = client.get("/system/resources")
+
+        assert response.status_code == 200
+        disks = response.json()["disks"]
+        assert [d["mountpoint"] for d in disks] == ["C:\\", "D:\\"]
+        assert disks[0]["percent"] == 98.1
+        assert disks[1]["percent"] == 46.7
+
 
 class TestMediaActions:
     def test_list_actions_includes_known_commands(self) -> None:
