@@ -484,3 +484,41 @@ class TestChatOfferCaching:
 
         assert cv_response.status_code == 200
         assert cv_response.json()["profil"] == "Profil"
+
+
+class TestCoverLetterRoute:
+    def test_generate_cover_letter_for_cached_offer(self) -> None:
+        from aelyn_api.deps import get_application_writer, get_offers_agent
+
+        offer = {
+            "id": "lm-offer-1",
+            "intitule": "Data Scientist",
+            "entreprise": {"nom": "ACME"},
+            "description": "Analyse de données.",
+        }
+        agent = MagicMock()
+        writer = MagicMock()
+        writer.draft_cover_letter.return_value = "Madame, Monsieur,\n\nCandidature..."
+        app.dependency_overrides[get_offers_agent] = lambda: agent
+        app.dependency_overrides[get_application_writer] = lambda: writer
+        try:
+            with patch("aelyn_api.routers.career.find_best_matches", return_value=[offer]):
+                client.get("/career")  # alimente le cache process (cache_offers)
+
+            response = client.post("/career/lm-offer-1/lm")
+        finally:
+            app.dependency_overrides.clear()
+
+        assert response.status_code == 200
+        assert response.json() == {"text": "Madame, Monsieur,\n\nCandidature..."}
+
+    def test_generate_cover_letter_for_unknown_offer_is_404(self) -> None:
+        from aelyn_api.deps import get_application_writer
+
+        app.dependency_overrides[get_application_writer] = lambda: MagicMock()
+        try:
+            response = client.post("/career/unknown-offer/lm")
+        finally:
+            app.dependency_overrides.clear()
+
+        assert response.status_code == 404

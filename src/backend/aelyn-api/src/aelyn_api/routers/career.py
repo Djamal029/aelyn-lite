@@ -260,6 +260,31 @@ def generate_cv(
         raise HTTPException(502, f"LLM indisponible : {exc}") from exc
 
 
+class CoverLetterOut(BaseModel):
+    text: str
+
+
+@router.post("/{offer_id}/lm", response_model=CoverLetterOut)
+def generate_cover_letter(
+    offer_id: str,
+    writer: ApplicationWriter = Depends(get_application_writer),
+) -> CoverLetterOut:
+    """Équivalent de `POST /{offer_id}/cv` pour la lettre de motivation,
+    même cache d'offres (cf. `cache_offers`, alimenté par `GET /career`
+    ET `POST /chat/message`). Lettre complète (avec en-tête), pas la
+    version `short` utilisée pour un brouillon de mail."""
+    offre = get_cached_offer(offer_id)
+    if offre is None:
+        raise HTTPException(
+            404,
+            f"Offre {offer_id} inconnue - appelle GET /career d'abord pour la charger.",
+        )
+    try:
+        return CoverLetterOut(text=writer.draft_cover_letter(offer_text(offre)))
+    except LLMError as exc:
+        raise HTTPException(502, f"LLM indisponible : {exc}") from exc
+
+
 @router.get("/profile")
 def get_profile() -> dict:
     """Contenu BRUT actuel de `profil.json` (relu depuis le disque à
