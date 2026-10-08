@@ -99,6 +99,78 @@ class TestMediaActions:
         assert response.status_code == 404
 
 
+class TestGeneralCareerSearch:
+    def test_returns_source_dates_deadline_and_real_apply_url_without_raw_payload(self):
+        from aelyn_api.deps import get_offers_agent
+
+        offer = {
+            "id": "ft-42",
+            "source": "francetravail",
+            "intitule": "Data Scientist",
+            "entreprise": {"nom": "ACME"},
+            "lieuTravail": {"libelle": "Paris"},
+            "typeContrat": "CDI",
+            "dateCreation": "2026-09-01T00:00:00Z",
+            "dateLimiteDePotentiel": "2026-09-30",
+            "origineOffre": {
+                "partenaires": [{"nom": "Site employeur", "url": "https://example.com/apply/42"}]
+            },
+            "description": "Réaliser des analyses statistiques.",
+            "sources_seen": [{"source": "francetravail", "url": "https://example.com/apply/42"}],
+        }
+        agent = MagicMock()
+
+        with patch("aelyn_api.routers.career.JobSearchService.search", return_value=[offer]):
+            app.dependency_overrides[get_offers_agent] = lambda: agent
+            try:
+                response = client.get("/career/search", params={"query": "data scientist"})
+            finally:
+                app.dependency_overrides.clear()
+
+        assert response.status_code == 200
+        result = response.json()["results"][0]
+        assert result["source"] == "francetravail"
+        assert result["posted_at"] == "2026-09-01T00:00:00Z"
+        assert result["expires_at"] == "2026-09-30"
+        assert result["deadline"] == "2026-09-30"
+        assert result["url"] == "https://example.com/apply/42"
+        assert result["application"]["url"] == result["url"]
+        assert result["application"]["source"] == "Site employeur"
+        assert result["company"]["name"] == "ACME"
+        assert result["metadata"] == {}
+
+    def test_scored_france_travail_route_returns_dates_and_application_link(self):
+        from aelyn_api.deps import get_offers_agent
+
+        offer = {
+            "id": "ft-43",
+            "intitule": "Data Scientist",
+            "entreprise": {"nom": "ACME"},
+            "lieuTravail": {"libelle": "Paris"},
+            "dateCreation": "2026-09-03",
+            "dateLimiteDePotentiel": "2026-10-02",
+            "origineOffre": {
+                "partenaires": [{"nom": "ACME Careers", "url": "https://acme.example/jobs/43"}]
+            },
+        }
+        agent = MagicMock()
+        agent.access_token = "token"
+
+        with patch("aelyn_api.routers.career.find_best_matches", return_value=[offer]):
+            app.dependency_overrides[get_offers_agent] = lambda: agent
+            try:
+                response = client.get("/career")
+            finally:
+                app.dependency_overrides.clear()
+
+        assert response.status_code == 200
+        result = response.json()[0]
+        assert result["date_publication"] == "2026-09-03"
+        assert result["date_limite"] == "2026-10-02"
+        assert result["deadline"] == "2026-10-02"
+        assert result["url"] == "https://acme.example/jobs/43"
+
+
 class TestYouTubeSearch:
     def test_returns_503_when_no_api_key_configured(self, monkeypatch) -> None:
         monkeypatch.setattr(settings, "youtube_api_key", None)

@@ -14,6 +14,12 @@ function formatMailDate(value: string | null): string {
   return Number.isNaN(date.getTime()) ? value : formatTimestamp(date.toISOString());
 }
 
+function formatOfferDate(value?: string | null): string {
+  if (!value) return "N/A";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? value : formatTimestamp(date.toISOString());
+}
+
 // Normalise les deux formes possibles d'une offre (cf. ApiOfferResult) :
 // sans ça, le dict brut France Travail que /chat/message renvoie
 // maintenant (entreprise/lieuTravail en objets imbriqués, pas les
@@ -21,16 +27,44 @@ function formatMailDate(value: string | null): string {
 // Object]" ou "N/A" partout dans ce tableau.
 function offerCompany(o: ApiOfferResult): string {
   if (typeof o.entreprise === "string") return o.entreprise || "N/A";
-  return o.entreprise?.nom ?? "N/A";
+  if (o.entreprise?.nom) return o.entreprise.nom;
+  if (typeof o.company === "string") return o.company || "N/A";
+  return o.company?.name ?? "N/A";
 }
 function offerLocation(o: ApiOfferResult): string {
-  return o.lieu ?? o.lieuTravail?.libelle ?? "N/A";
+  if (o.lieu || o.lieuTravail?.libelle) return o.lieu ?? o.lieuTravail?.libelle ?? "N/A";
+  if (typeof o.location === "string") return o.location || "N/A";
+  return o.location?.city ?? o.location?.raw ?? o.location?.remote ?? "N/A";
 }
 function offerContract(o: ApiOfferResult): string {
-  return o.contrat ?? o.typeContrat ?? "N/A";
+  return o.contrat ?? o.typeContrat ?? o.contract_type ?? "N/A";
 }
 function offerApplyUrl(o: ApiOfferResult): string | undefined {
-  return o.origineOffre?.partenaires?.[0]?.url ?? o.origineOffre?.urlOrigine;
+  const candidates = [
+    o.application?.url,
+    o.url,
+    o.urlOffre,
+    o.lien,
+    ...(o.origineOffre?.partenaires ?? []).map((partner) => partner.url),
+    o.origineOffre?.urlOrigine,
+  ];
+  for (const candidate of candidates) {
+    if (!candidate) continue;
+    try {
+      const parsed = new URL(candidate);
+      if (parsed.protocol === "https:" || parsed.protocol === "http:") return parsed.href;
+    } catch {
+      // Ignore malformed links from upstream APIs; never invent a destination.
+    }
+  }
+  return undefined;
+}
+function offerDeadline(o: ApiOfferResult): string | undefined {
+  return o.application?.deadline ?? o.deadline ?? o.expires_at ?? o.dateLimiteDePotentiel ?? o.dateLimite ?? o.dateFin;
+}
+function offerSource(o: ApiOfferResult): string {
+  const source = o.source ?? o.sources_seen?.[0]?.source ?? "France Travail";
+  return source === "francetravail" ? "France Travail" : source;
 }
 
 /** Renders a real chat-reply list (offer search / mail check) as an
@@ -54,6 +88,9 @@ export function ChatResultTable({ resultType, results }: ChatResultTableProps) {
                 <th>Entreprise</th>
                 <th>Lieu</th>
                 <th>Contrat</th>
+                <th>Publié</th>
+                <th>Deadline</th>
+                <th>Source</th>
                 <th>Score</th>
                 <th>Postuler</th>
               </tr>
@@ -63,10 +100,13 @@ export function ChatResultTable({ resultType, results }: ChatResultTableProps) {
                 const applyUrl = offerApplyUrl(o);
                 return (
                   <tr key={o.id ?? `${o.intitule ?? "offre"}-${i}`}>
-                    <td>{o.intitule ?? "N/A"}</td>
+                    <td>{o.intitule ?? o.title ?? "N/A"}</td>
                     <td>{offerCompany(o)}</td>
                     <td>{offerLocation(o)}</td>
                     <td>{offerContract(o)}</td>
+                    <td className={styles.date}>{formatOfferDate(o.date_publication ?? o.dateCreation ?? o.date_creation ?? o.posted_at)}</td>
+                    <td className={styles.date}>{formatOfferDate(offerDeadline(o))}</td>
+                    <td>{offerSource(o)}</td>
                     <td className={styles.score}>{typeof o.score === "number" ? `${Math.round(o.score * 100)}%` : "N/A"}</td>
                     <td>
                       {applyUrl ? (

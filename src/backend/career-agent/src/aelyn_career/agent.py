@@ -63,11 +63,17 @@ def run_command(
             "classées par pertinence avec ton profil :"
         )
         for offre in offres:
-            entreprise = offre.get("entreprise", {}).get("nom", "?")
-            lieu = offre.get("lieuTravail", {}).get("libelle", "?")
-            contrat = offre.get("typeContrat", "?")
+            company = offre.get("entreprise") or offre.get("company") or {}
+            entreprise = (company.get("nom") or company.get("name")) if isinstance(company, dict) else company
+            location = offre.get("lieuTravail") or offre.get("location") or offre.get("lieu") or {}
+            lieu = (location.get("libelle") or location.get("city")) if isinstance(location, dict) else location
+            contrat = offre.get("typeContrat") or offre.get("contract_type") or "?"
             pct = round(offre["score"] * 100)
-            print(f"- [{pct}%] {offre.get('intitule')} | {entreprise} | {lieu} | {contrat}")
+            titre = offre.get("intitule") or offre.get("title") or "Offre sans intitulé"
+            source = offre.get("source") or "France Travail"
+            publication = offre.get("dateCreation") or offre.get("posted_at")
+            date = f" | publiée {publication}" if publication else ""
+            print(f"- [{pct}%] {titre} | {entreprise or '?'} | {lieu or '?'} | {contrat} | {source}{date}")
         return 0, offres
 
     return 1, []

@@ -176,6 +176,17 @@ class Settings(BaseModel):
     # Codes département France Travail (ex. "75,35"), même logique que
     # `keywords` ci-dessus.
     department: str = ""
+    # Sélection des preuves CV/lettre : "llm" (compréhension sémantique
+    # locale) ou "keywords" (recouvrement lexical, rapide et sans LLM).
+    # "keywords" par défaut : constaté en direct, le mode "llm" peut
+    # déclencher un timeout HTTP côté frontend (chargement VRAM du modèle
+    # lourd de candidature après éviction du modèle léger de conversation,
+    # cf. `ApplicationWriter.__init__`) sur un simple "oui" de confirmation,
+    # et choisit parfois moins bien que le score lexical (ex. une
+    # certification pertinente écartée au profit des 3 premières du
+    # profil). Rapide, déterministe, et suffisant vu le faible nombre
+    # d'expériences/projets/certifications d'un profil réel.
+    application_selection_mode: str = "keywords"
 
     @property
     def journal_path(self) -> Path:
@@ -258,6 +269,7 @@ def get_settings() -> Settings:
         embedding_device=os.getenv("EMBEDDING_DEVICE", "cuda"),
         keywords=os.getenv("KEYWORDS", ""),
         department=os.getenv("DEPARTMENT", ""),
+        application_selection_mode=os.getenv("APPLICATION_SELECTION_MODE", "keywords").strip().lower(),
     )
 
 

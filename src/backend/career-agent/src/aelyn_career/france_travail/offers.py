@@ -4,8 +4,8 @@ import re
 import dotenv
 import requests
 
-
 from aelyn.core.config import settings
+from aelyn_career.job_sources import deduplicate_offers, enrich_offer
 
 # Sépare sur la virgule ou sur " et "/" & " : un LLM qui extrait des
 # mots-clés depuis une phrase libre (ex. "des offres chez EDF et Roche")
@@ -333,12 +333,12 @@ class FTOffers:
         resultats = list(offres_par_id.values())
         resultats.sort(key=lambda offre: offre.get("dateCreation", ""), reverse=True)
 
-        uniques: list[dict] = []
-        seen: set[tuple[str, ...]] = set()
-        for offre in resultats:
-            fingerprint = _offer_dedupe_key(offre)
-            if fingerprint not in seen:
-                seen.add(fingerprint)
-                uniques.append(offre)
+        # On garde la logique France Travail existante, mais on enrichit ensuite
+        # chaque offre avec des champs utiles pour un moteur carrière généraliste
+        # (domaine, skills, provenance, déduplication multi-source). Cela garde le
+        # comportement actuel pour l'API FT, tout en préparant le système à
+        # fusionner d'autres APIs sans casser la recherche existante.
+        enhanced = [enrich_offer(offre, source="francetravail") for offre in resultats]
+        uniques = deduplicate_offers(enhanced)
 
         return uniques[:limit] if limit else uniques, possible_filters

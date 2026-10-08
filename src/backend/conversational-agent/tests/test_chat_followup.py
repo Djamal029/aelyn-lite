@@ -280,6 +280,40 @@ class TestChatContextAfterLists:
 
         mock_converse.assert_called_once()
 
+
+def test_application_info_selects_a_real_link_and_surfaces_dates_and_source():
+    from aelyn_conversation.agent import _application_info, _offer_line
+
+    offer = {
+        "id": "remotive:42",
+        "title": "Data Scientist",
+        "company": "ACME",
+        "location": "Remote",
+        "contract_type": "UNKNOWN",
+        "source": "remotive",
+        "posted_at": "2026-09-15",
+        "deadline": "2026-10-15",
+        "url": "https://example.com/apply",
+        "sources_seen": [{"source": "remotive"}, {"source": "remoteok"}],
+        "origineOffre": {
+            "partenaires": [
+                {"nom": "Broken link", "url": ""},
+                {"nom": "Employer", "url": "https://example.com/apply"},
+            ]
+        },
+    }
+
+    info = _application_info(offer)
+    line = _offer_line(offer)
+
+    assert "https://example.com/apply" in info
+    assert "2026-09-15" in info
+    assert "2026-10-15" in info
+    assert "remotive, remoteok" in info
+    assert "Data Scientist" in line
+    assert "ACME" in line
+    assert "remotive" in line
+
     def test_failed_offer_search_does_not_return_previous_turn(self, agent):
         from aelyn.core.llm import LLMError
         from aelyn_conversation.models import Intent

@@ -1,8 +1,9 @@
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
-from aelyn_career.application_writer import ApplicationWriter
+from aelyn.core.config import settings
+from aelyn_career.application_writer import ApplicationSelection, ApplicationWriter
 from aelyn_career.models import CVExperience
-from aelyn_career.profil_manager import ProfilManager
+from aelyn_career.profil_manager import ProfilManager, validate_profil_structure
 
 
 def make_profile() -> dict:
@@ -24,6 +25,23 @@ def make_profile() -> dict:
                     "period": "2020-2023",
                 },
             ],
+            "skills": {
+                "Data Science": ["Python", "SQL"],
+                "Statistique": ["R"],
+            },
+            "projects": {
+                "academic_projects": [
+                    {"title": "Statistical trial analysis", "description": "Analysis of trial outcomes."}
+                ],
+                "bachelor_projects": [],
+                "personal_projects": [],
+            },
+            "certifications": {
+                "website": [{"title": "Data Science Certificate", "issuer": "Example Institute"}],
+                "linkedin": [{"title": "Cloud Fundamentals", "issuer": "Example Academy"}],
+            },
+            "languages": [{"language": "French", "level": "Fluent"}],
+            "interests": ["Reading"],
             "experience": [
                 {
                     "role": "Stagiaire Data Scientist",
@@ -160,3 +178,138 @@ def test_cv_replaces_llm_period_with_exact_profile_period():
 
     assert january_muraz.entreprise == "Centre MURAZ"
     assert any("Poisson" in bullet for bullet in january_muraz.puces)
+
+
+def test_cv_does_not_keep_non_numeric_bullet_from_another_experience():
+    writer = make_writer()
+    proposed = [
+        CVExperience(
+            role="Stagiaire Data Scientist",
+            entreprise="Servier France",
+            periode="May 2026 - September 2026",
+            puces=["Analyzed volunteer applications for a music festival"],
+        )
+    ]
+
+    validated = writer._validate_experiences(proposed)
+    servier = next(
+        experience for experience in validated
+        if experience.entreprise == "Servier France"
+    )
+
+    assert "Analyzed volunteer applications for a music festival" not in servier.puces
+    assert all("volunteer" not in bullet.lower() for bullet in servier.puces)
+
+
+def test_draft_cv_rebuilds_from_profile_when_llm_returns_invalid_evidence_ids(monkeypatch):
+    monkeypatch.setattr(settings, "application_selection_mode", "llm")
+    writer = make_writer()
+    writer.llm.structured.return_value = ApplicationSelection(
+        experience_indices=[999],
+        project_indices=[999],
+        skill_indices=[999],
+        certification_indices=[999],
+    )
+
+    cv = writer.draft_cv("Data Scientist\nDescription de l'offre")
+
+    assert "100" not in cv.profil
+    assert "Data Scientist" in cv.profil
+    servier = next(exp for exp in cv.experiences if exp.entreprise == "Servier France")
+    festival = next(exp for exp in cv.experiences if exp.entreprise == "Les Vieilles Charrues")
+    assert all("volunteer" not in bullet.lower() for bullet in servier.puces)
+    assert any("volunteer" in bullet.lower() for bullet in festival.puces)
+    assert [(project.titre, project.description) for project in cv.projets] == [
+        ("Statistical trial analysis", "Analysis of trial outcomes.")
+    ]
+    assert cv.competences == {"Data Science": ["Python", "SQL"], "Statistique": ["R"]}
+    assert cv.formation == writer._real_formation()
+    # Déterministe même en mode "llm" (cf. `_select_application_items`) :
+    # les deux certifications du profil ont un score mots-clés non nul
+    # pour "Data Scientist", l'id invalide du LLM (999) n'entre pas en jeu.
+    assert cv.certifications == ["Data Science Certificate", "Cloud Fundamentals"]
+    assert cv.langues == ["French : Fluent"]
+    assert cv.centres_interet == ["Reading"]
+    writer.llm.structured.assert_called_once()
+    assert writer.llm.structured.call_args.kwargs["schema"] is ApplicationSelection
+
+
+def test_llm_mode_selects_only_profile_evidence_ids(monkeypatch):
+    monkeypatch.setattr(settings, "application_selection_mode", "llm")
+    writer = make_writer()
+    writer.llm.structured.return_value = ApplicationSelection(
+        experience_indices=[1, 999],
+        project_indices=[0],
+        skill_indices=[0, 0, 999],
+        certification_indices=[1],
+    )
+
+    selected = writer._select_application_items("Data Scientist\nPython analytics")
+
+    assert selected.experience_indices == [1]
+    assert selected.project_indices == [0]
+    assert selected.skill_indices == [0]
+    # Toujours déterministe (mots-clés), même en mode "llm" : le LLM a beau
+    # proposer [1] ("Cloud Fundamentals"), seule "Data Science Certificate"
+    # (index 0) partage un mot avec l'offre - la sortie LLM est ignorée.
+    assert selected.certification_indices == [0, 1]
+
+
+def test_keywords_mode_does_not_call_the_llm(monkeypatch):
+    monkeypatch.setattr(settings, "application_selection_mode", "keywords")
+    writer = make_writer()
+
+    selected = writer._select_application_items("Data Scientist\nPython analytics")
+
+    assert selected.experience_indices
+    assert selected.skill_indices
+    writer.llm.structured.assert_not_called()
+
+
+def test_ambiguous_same_employer_experience_does_not_guess_from_partial_labels():
+    writer = make_writer()
+
+    result = writer._real_experience_metadata(
+        entreprise="Centre MURAZ",
+        periode="2030-2031",
+        role="Researcher",
+    )
+
+    assert result is None
+
+
+def test_cover_letter_and_refinement_use_only_profile_and_offer_facts(monkeypatch):
+    monkeypatch.setattr(settings, "application_selection_mode", "keywords")
+    writer = make_writer()
+    from aelyn_career.application_writer import offer_text
+
+    offer = offer_text({
+        "intitule": "Data Scientist",
+        "entreprise": {"nom": "ACME"},
+        "description": "Statistical analysis and Python.",
+        "url": "https://example.com/apply",
+        "dateLimite": "2026-12-01",
+    })
+    with patch.object(writer, "contact_header", return_value=""):
+        letter = writer.draft_cover_letter(offer)
+        refined = writer.refine_cover_letter(
+            "J'ai un doctorat inventé et dirigé une équipe de 100 personnes.",
+            offer,
+        )
+
+    for text in (letter, refined):
+        assert "Data Scientist" in text
+        assert "ACME" in text
+        assert "inventé" not in text.lower()
+        assert "100 personnes" not in text
+        assert "Veuillez agréer" in text
+    writer.llm.text.assert_not_called()
+
+
+def test_profile_validation_rejects_missing_location_before_profile_is_saved():
+    profile = make_profile()
+    del profile["profile"]["experience"][0]["location"]
+
+    errors = validate_profil_structure(profile)
+
+    assert any("experience[0]" in error and "location" in error for error in errors)

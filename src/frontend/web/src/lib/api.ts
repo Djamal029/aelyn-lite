@@ -181,6 +181,11 @@ export interface ApiCareerOffer {
   lieu: string;
   contrat: string;
   date_creation: string;
+  date_publication?: string | null;
+  date_limite?: string | null;
+  deadline?: string | null;
+  url?: string | null;
+  description?: string | null;
   score?: number;
 }
 
@@ -213,14 +218,31 @@ export interface ApiCvContent {
 export interface ApiOfferResult {
   id?: string;
   intitule?: string;
+  title?: string;
   entreprise?: string | { nom?: string };
+  company?: string | { name?: string };
   lieuTravail?: { libelle?: string };
+  location?: string | { city?: string; raw?: string; remote?: string };
   lieu?: string;
   typeContrat?: string;
   contrat?: string;
+  contract_type?: string;
   dateCreation?: string;
   date_creation?: string;
+  date_publication?: string;
+  posted_at?: string;
+  dateLimiteDePotentiel?: string;
+  dateLimite?: string;
+  dateFin?: string;
+  deadline?: string;
+  expires_at?: string;
   score?: number;
+  source?: string;
+  url?: string;
+  urlOffre?: string;
+  lien?: string;
+  application?: { url?: string; source?: string; deadline?: string };
+  sources_seen?: { source?: string; url?: string }[];
   /** Jamais un lien inventé, toujours celui de l'annonce source. France
    * Travail héberge rarement la candidature elle-même : `partenaires[0].
    * url` (ex. PMEJOB, DirectEmploi...) est en général la VRAIE

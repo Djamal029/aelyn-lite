@@ -18,6 +18,7 @@ from aelyn_career.embbeder import TextEmbbeder, niveau_adequacy
 from aelyn_career.france_travail.offers import FTOffers
 from aelyn_career.llm_structurer import LLMOfferStructurer
 from aelyn_career.profil_manager import ProfilManager, chunk_label
+from aelyn_career.search import JobSearchService
 
 dotenv.load_dotenv()
 TOP_K_CHUNKS = int(os.getenv("TOP_K_CHUNKS", "5"))
@@ -25,7 +26,7 @@ TOP_K_CHUNKS = int(os.getenv("TOP_K_CHUNKS", "5"))
 
 def _offer_text(offre: dict) -> str:
     """Représentation texte d'une offre, envoyée au LLM pour la structurer."""
-    return f"{offre.get('intitule', '')}\n{offre.get('description', '')}"
+    return f"{offre.get('intitule') or offre.get('title') or ''}\n{offre.get('description', '')}"
 
 
 def find_best_matches(
@@ -64,12 +65,10 @@ def find_best_matches(
     embedder = embedder or TextEmbbeder()
     profil_manager = profil_manager or ProfilManager()
 
-    if ft.access_token is None:
-        ft.connect()
-    offres, _ = ft.search_offers(
+    offres = JobSearchService(ft).search(
         contract_type=contract_type,
         keywords=keywords,
-        limit=max_offers,
+        limit=max_offers if max_offers is not None else 100,
     )
     if max_offers is not None:
         offres = offres[:max_offers]
@@ -102,7 +101,9 @@ def find_best_matches(
         relevance = 1.0
         if keywords:
             relevance = embedder.query_relevance(
-                keywords, offre.get("intitule", ""), offre_structuree["competences_requises"]
+                keywords,
+                offre.get("intitule") or offre.get("title") or "",
+                offre_structuree["competences_requises"],
             )
 
         # Trois facteurs <= 1 multipliés entre eux (score texte/cosinus,

@@ -80,9 +80,15 @@ def validate_profil_structure(data: object) -> list[str]:
             if not isinstance(exp, dict):
                 problems.append(f"profile.experience[{i}] n'est pas un objet")
                 continue
-            for field in ("role", "company", "period", "description"):
+            for field in ("role", "company", "period", "description", "location"):
                 if field not in exp:
                     problems.append(f"profile.experience[{i}] : champ '{field}' manquant")
+            for field in ("highlights", "methodology", "technologies"):
+                values = exp.get(field, [])
+                if not isinstance(values, list) or any(not isinstance(value, str) for value in values):
+                    problems.append(f"profile.experience[{i}].{field} doit être une liste de textes")
+            if not isinstance(exp.get("results", {}), dict):
+                problems.append(f"profile.experience[{i}].results doit être un objet")
 
     education = profile.get("education", [])
     if not isinstance(education, list):
@@ -99,6 +105,10 @@ def validate_profil_structure(data: object) -> list[str]:
     skills = profile.get("skills", {})
     if not isinstance(skills, dict):
         problems.append("'profile.skills' doit être un objet (catégorie -> liste de compétences)")
+    else:
+        for category, values in skills.items():
+            if not isinstance(values, list) or any(not isinstance(value, str) for value in values):
+                problems.append(f"'profile.skills.{category}' doit être une liste de textes")
 
     projects = profile.get("projects", {})
     if not isinstance(projects, dict):
@@ -112,6 +122,11 @@ def validate_profil_structure(data: object) -> list[str]:
             for i, proj in enumerate(items):
                 if not isinstance(proj, dict) or "title" not in proj:
                     problems.append(f"profile.projects.{section}[{i}] : champ 'title' manquant")
+                    continue
+                for field in ("technologies", "methodology"):
+                    values = proj.get(field, [])
+                    if not isinstance(values, list) or any(not isinstance(value, str) for value in values):
+                        problems.append(f"profile.projects.{section}[{i}].{field} doit être une liste de textes")
 
     certifications = profile.get("certifications", {})
     if not isinstance(certifications, dict):
@@ -129,6 +144,9 @@ def validate_profil_structure(data: object) -> list[str]:
                 for field in ("title", "issuer"):
                     if field not in cert:
                         problems.append(f"profile.certifications.{source}[{i}] : champ '{field}' manquant")
+                skills_for_cert = cert.get("skills", [])
+                if not isinstance(skills_for_cert, list) or any(not isinstance(value, str) for value in skills_for_cert):
+                    problems.append(f"profile.certifications.{source}[{i}].skills doit être une liste de textes")
 
     volunteering = profile.get("volunteering", {})
     if not isinstance(volunteering, dict):
@@ -146,6 +164,10 @@ def validate_profil_structure(data: object) -> list[str]:
                 for field in ("title", "organization"):
                     if field not in benevolat:
                         problems.append(f"profile.volunteering.{source}[{i}] : champ '{field}' manquant")
+                for field in ("responsibilities", "skills"):
+                    values = benevolat.get(field, [])
+                    if not isinstance(values, list) or any(not isinstance(value, str) for value in values):
+                        problems.append(f"profile.volunteering.{source}[{i}].{field} doit être une liste de textes")
 
     recommendations = profile.get("recommendations", [])
     if not isinstance(recommendations, list):
@@ -169,8 +191,9 @@ def validate_profil_structure(data: object) -> list[str]:
                     problems.append(f"profile.languages[{i}] : champs 'language'/'level' requis")
 
     interests = profile.get("interests")
-    if interests is not None and not isinstance(interests, list):
-        problems.append("'profile.interests' doit être une liste")
+    if interests is not None:
+        if not isinstance(interests, list) or any(not isinstance(item, str) for item in interests):
+            problems.append("'profile.interests' doit être une liste de textes")
 
     return problems
 

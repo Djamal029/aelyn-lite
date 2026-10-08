@@ -9,6 +9,8 @@ from unittest.mock import Mock, patch
 import pytest
 
 from aelyn_career.france_travail.offers import FTOffers
+from aelyn_career.search import JobSearchService
+from aelyn_career.source_adapters import CareerjetAdapter, RemoteOKAdapter
 
 
 def make_response(status_code: int, json_data: dict):
@@ -406,3 +408,114 @@ class TestSearchOffers:
             offres, _ = ft.search_offers(limit=2)
 
         assert [offre["id"] for offre in offres] == ["1", "2"]
+
+
+class TestJobSearchService:
+    def test_search_returns_deduplicated_enriched_offers(self):
+        ft = FTOffers(access_token="token")
+        service = JobSearchService(ft)
+        offre_1 = {"id": "1", "intitule": "Data Scientist", "typeContrat": "CDI", "description": "Python, ML, AI", "dateCreation": "2026-09-01"}
+        offre_2 = {"id": "2", "intitule": "Data Scientist", "typeContrat": "CDI", "description": "Python, ML, AI", "dateCreation": "2026-09-02"}
+
+        with patch.object(ft, "search_offers", return_value=([offre_1, offre_2], None)):
+            offres = service.search(keywords="data scientist", limit=10)
+
+        assert len(offres) == 1
+        assert offres[0]["source"] == "francetravail"
+        assert offres[0]["is_ai_related"] is True
+        assert offres[0]["contract_type"] == "CDI"
+
+    def test_search_aggregates_and_deduplicates_configured_sources(self, monkeypatch):
+        monkeypatch.setenv("AELYN_ENABLE_PUBLIC_JOB_APIS", "true")
+        ft = FTOffers(access_token="token")
+        service = JobSearchService(ft)
+        france_travail_offer = {
+            "id": "ft-1",
+            "intitule": "Data Scientist",
+            "entreprise": {"nom": "ACME"},
+            "lieuTravail": {"libelle": "Paris"},
+            "typeContrat": "CDI",
+            "dateCreation": "2026-09-02",
+            "origineOffre": {
+                "partenaires": [{"nom": "ACME Careers", "url": "https://acme.example/jobs/1"}]
+            },
+        }
+        duplicate = {
+            "id": "remote:1",
+            "source": "remotive",
+            "title": "Data Scientist",
+            "company": "ACME",
+            "location": "Paris",
+            "contract_type": "CDI",
+            "url": "https://acme.example/jobs/1",
+        }
+        adapter = Mock()
+        adapter.name = "remotive"
+        adapter.search.return_value = [duplicate]
+
+        with patch.object(ft, "search_offers", return_value=([france_travail_offer], None)):
+            with patch("aelyn_career.search.available_source_adapters", return_value=[adapter]):
+                offers = service.search(keywords="data scientist", limit=10)
+
+        assert len(offers) == 1
+        assert offers[0]["duplicate_count"] == 2
+        assert offers[0]["url"] == "https://acme.example/jobs/1"
+        assert offers[0]["application_source"] == "ACME Careers"
+        assert {entry["source"] for entry in offers[0]["sources_seen"]} == {
+            "francetravail",
+            "remotive",
+        }
+        adapter.search.assert_called_once()
+
+    def test_supplemental_sources_use_first_configured_keyword_when_query_is_empty(self, monkeypatch):
+        monkeypatch.setenv("AELYN_ENABLE_PUBLIC_JOB_APIS", "true")
+        ft = FTOffers(access_token="token")
+        ft.keywords = "Data Scientist,Machine Learning"
+        service = JobSearchService(ft)
+        adapter = Mock()
+        adapter.name = "remotive"
+        adapter.search.return_value = []
+
+        with patch.object(ft, "search_offers", return_value=([], None)):
+            with patch("aelyn_career.search.available_source_adapters", return_value=[adapter]):
+                service.search(keywords=None, limit=5)
+
+        assert adapter.search.call_args.kwargs["keywords"] == "Data Scientist"
+
+
+class TestAdditionalSourceAdapters:
+    def test_careerjet_maps_apply_url_and_dates(self, monkeypatch):
+        monkeypatch.setenv("CAREERJET_API_KEY", "test-key")
+        response = Mock()
+        response.json.return_value = {
+            "jobs": [{
+                "title": "Data Scientist",
+                "company": "ACME",
+                "locations": "Paris",
+                "url": "https://example.com/job/1",
+                "date": "2026-09-02",
+                "expiration_date": "2026-10-01",
+            }]
+        }
+
+        with patch("aelyn_career.source_adapters.requests.get", return_value=response) as mock_get:
+            offers = CareerjetAdapter().search("data scientist")
+
+        assert offers[0]["source"] == "careerjet"
+        assert offers[0]["url"] == "https://example.com/job/1"
+        assert offers[0]["dateLimite"] == "2026-10-01"
+        assert mock_get.call_args.kwargs["auth"] == ("test-key", "")
+
+    def test_remoteok_filters_and_maps_direct_apply_url(self):
+        response = Mock()
+        response.json.return_value = [
+            {"id": 1, "position": "Data Scientist", "company": "ACME", "tags": ["python"], "url": "https://remoteok.com/1", "apply_url": "https://acme.example/apply"},
+            {"id": 2, "position": "Product Designer", "company": "Other", "tags": ["design"], "url": "https://remoteok.com/2"},
+        ]
+
+        with patch("aelyn_career.source_adapters.requests.get", return_value=response):
+            offers = RemoteOKAdapter().search("data python")
+
+        assert len(offers) == 1
+        assert offers[0]["source"] == "remoteok"
+        assert offers[0]["application"]["url"] == "https://acme.example/apply"

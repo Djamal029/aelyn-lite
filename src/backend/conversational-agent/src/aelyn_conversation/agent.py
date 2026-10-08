@@ -1980,10 +1980,14 @@ def _offer_line(offre: dict) -> str:
     `aelyn_career.agent.run_command`, pour que `_last_results` (relu par
     `_try_read_back`) ressemble à ce qui a été affiché au moment de la
     recherche."""
-    entreprise = offre.get("entreprise", {}).get("nom", "?")
-    lieu = offre.get("lieuTravail", {}).get("libelle", "?")
-    contrat = offre.get("typeContrat", "?")
-    return f"- {offre.get('intitule')} | {entreprise} | {lieu} | {contrat}"
+    company = offre.get("entreprise") or offre.get("company") or {}
+    entreprise = (company.get("nom") or company.get("name")) if isinstance(company, dict) else company
+    location = offre.get("lieuTravail") or offre.get("location") or offre.get("lieu") or {}
+    lieu = (location.get("libelle") or location.get("city")) if isinstance(location, dict) else location
+    contrat = offre.get("typeContrat") or offre.get("contract_type") or offre.get("contrat") or "?"
+    title = offre.get("intitule") or offre.get("title") or "Offre sans intitulé"
+    source = offre.get("source") or "France Travail"
+    return f"- {title} | {entreprise or '?'} | {lieu or '?'} | {contrat} | {source}"
 
 
 def _application_info(offre: dict) -> str:
@@ -2005,15 +2009,49 @@ def _application_info(offre: dict) -> str:
     lignes: list[str] = []
 
     partenaires = origine.get("partenaires") or []
-    if partenaires:
-        nom = partenaires[0].get("nom")
-        url = partenaires[0].get("url")
-        if url:
-            lignes.append(f"Candidature en ligne{f' ({nom})' if nom else ''} : {url}")
+    application = offre.get("application") or {}
+    partenaire = next(
+        (partner for partner in partenaires if isinstance(partner, dict) and partner.get("url")),
+        {},
+    )
+    url = (
+        application.get("url")
+        or offre.get("url")
+        or offre.get("urlOffre")
+        or offre.get("lien")
+        or partenaire.get("url")
+        or origine.get("urlOrigine")
+    )
+    application_source = application.get("source") or partenaire.get("nom") or offre.get("source")
+    if url:
+        lignes.append(f"Candidature en ligne{f' ({application_source})' if application_source else ''} : {url}")
 
     url_origine = origine.get("urlOrigine")
     if url_origine:
         lignes.append(f"Fiche France Travail : {url_origine}")
+
+    publication = offre.get("dateCreation") or offre.get("posted_at") or offre.get("date_publication")
+    deadline = (
+        application.get("deadline")
+        or offre.get("dateLimiteDePotentiel")
+        or offre.get("dateLimite")
+        or offre.get("dateFin")
+        or offre.get("expires_at")
+        or offre.get("deadline")
+    )
+    if publication:
+        lignes.append(f"Date de publication : {publication}")
+    if deadline:
+        lignes.append(f"Date limite de candidature : {deadline}")
+    sources = offre.get("sources_seen") or []
+    source_names = list(dict.fromkeys(
+        str(item.get("source")) for item in sources
+        if isinstance(item, dict) and item.get("source")
+    ))
+    if not source_names and offre.get("source"):
+        source_names = [str(offre["source"])]
+    if source_names:
+        lignes.append("Source(s) de l'offre : " + ", ".join(source_names))
 
     contact = offre.get("contact") or {}
     coordonnees = [
@@ -2026,6 +2064,8 @@ def _application_info(offre: dict) -> str:
     if contact.get("commentaire"):
         lignes.append(contact["commentaire"])
 
+    if not url and not lignes:
+        return "Lien de candidature non fourni par la source ; ouvre la fiche de l'offre pour vérifier les modalités."
     if not lignes:
         return ""
     return "Pour postuler :\n" + "\n".join(f"- {ligne}" for ligne in lignes)
