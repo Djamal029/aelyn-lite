@@ -22,6 +22,12 @@ from aelyn_career.search import JobSearchService
 
 dotenv.load_dotenv()
 TOP_K_CHUNKS = int(os.getenv("TOP_K_CHUNKS", "5"))
+# Score (échelle sqrt déjà appliquée, cf. find_best_matches) en dessous
+# duquel une offre est écartée plutôt que de combler artificiellement un
+# nombre de résultats demandé. Choisi nettement au-dessus du bruit observé
+# en direct (1-6%) et nettement en dessous des vraies offres pertinentes
+# (44%+ dans les cas réels observés cette session).
+MIN_RELEVANT_SCORE = float(os.getenv("MIN_RELEVANT_SCORE", "0.15"))
 
 
 def _offer_text(offre: dict) -> str:
@@ -131,4 +137,18 @@ def find_best_matches(
         )
 
     resultats.sort(key=lambda o: o["score"], reverse=True)
+
+    if keywords:
+        # Constaté en direct : "trouve-moi 10 stages de développeur à
+        # Rennes" complétait les 10 demandés avec des offres à 1-6% de
+        # pertinence (infirmier, soudeur...) remontées par le repli sur
+        # mots isolés de `_search_relaxed` (france_travail/offers.py),
+        # simplement parce qu'il n'existait pas assez de VRAIS stages dev
+        # à Rennes ce jour-là. Mieux vaut renvoyer moins de résultats que
+        # demandé plutôt que de les compléter avec du bruit quasi nul -
+        # seuil appliqué UNIQUEMENT quand l'utilisateur a précisé des
+        # mots-clés (comme `relevance` ci-dessus, jamais sur la recherche
+        # par défaut, volontairement large).
+        resultats = [o for o in resultats if o["score"] >= MIN_RELEVANT_SCORE]
+
     return resultats[:top_n]

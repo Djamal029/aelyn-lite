@@ -24,6 +24,28 @@ def _offer_company(offer: dict) -> str:
     return str(company or "")
 
 
+# Sources sans champ contract_type fiable (Arbeitnow en pratique renvoie
+# toujours "UNKNOWN") : un plan d'ordre un... non, ici un repli texte,
+# même principe que le filtre client déjà en place pour France Travail
+# (france_travail/offers.py) - sans lui, une offre "Lead Tech FullStack
+# Java" ou "Senior Data Engineer" passait le filtre "stage" simplement
+# parce que la source ne déclare aucun type de contrat du tout (bug réel
+# constaté en direct : "trouve-moi des stages de développeur" faisait
+# remonter des postes seniors confirmés).
+_CONTRACT_TEXT_HINTS = {
+    "stage": ("stage", "intern", "internship"),
+    "alternance": ("alternance", "apprentissage", "apprentice"),
+}
+
+
+def _matches_contract_text(offer: dict, contract_type: str) -> bool:
+    hints = _CONTRACT_TEXT_HINTS.get(contract_type.lower())
+    if not hints:
+        return True
+    haystack = f"{offer.get('title') or offer.get('intitule') or ''} {offer.get('description') or ''}".lower()
+    return any(hint in haystack for hint in hints)
+
+
 class JobSearchService:
     """Service unique qui masque la logique d'agrégation multi-source."""
 
@@ -119,6 +141,12 @@ class JobSearchService:
                         contract_type
                         and actual_contract != "UNKNOWN"
                         and actual_contract != requested_contract
+                    ):
+                        continue
+                    if (
+                        contract_type
+                        and actual_contract == "UNKNOWN"
+                        and not _matches_contract_text(offer, contract_type)
                     ):
                         continue
                     source_name = str(offer.get("source") or adapter.name)

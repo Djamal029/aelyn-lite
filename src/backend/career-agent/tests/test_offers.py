@@ -535,6 +535,37 @@ class TestJobSearchService:
         assert logs[0].result_count == 1
         assert logs[0].new_count == 1
 
+    def test_search_stage_filters_out_unknown_contract_offers_without_stage_wording(self, monkeypatch, tmp_path):
+        """Bug réel constaté en direct : Arbeitnow (et sources similaires)
+        ne déclarent jamais de contract_type fiable ("UNKNOWN"), donc le
+        filtre contract_type="stage" laissait passer n'importe quel poste,
+        y compris des postes seniors confirmés, simplement parce que la
+        source ne précise rien. Un poste "UNKNOWN" doit désormais mentionner
+        "stage"/"intern" dans son titre ou sa description pour survivre."""
+        monkeypatch.setenv("AELYN_ENABLE_PUBLIC_JOB_APIS", "true")
+        ft = FTOffers(access_token="token")
+        cache = OfferCache(tmp_path / "offers_cache.db")
+        service = JobSearchService(ft, cache=cache)
+        senior_offer = {
+            "id": "arbeitnow:1", "source": "arbeitnow",
+            "title": "Senior Data Engineer", "company": "SFEIR", "location": "Rennes",
+            "contract_type": "UNKNOWN", "description": "5+ years of experience required.",
+        }
+        intern_offer = {
+            "id": "arbeitnow:2", "source": "arbeitnow",
+            "title": "Data Engineer Intern", "company": "SFEIR", "location": "Rennes",
+            "contract_type": "UNKNOWN", "description": "6-month internship for students.",
+        }
+        adapter = Mock()
+        adapter.name = "arbeitnow"
+        adapter.search.return_value = [senior_offer, intern_offer]
+
+        with patch.object(ft, "search_offers", return_value=([], None)):
+            with patch("aelyn_career.search.available_source_adapters", return_value=[adapter]):
+                offers = service.search(keywords="data engineer rennes", contract_type="stage", limit=10)
+
+        assert [o["id"] for o in offers] == ["arbeitnow:2"]
+
 
 class TestAdditionalSourceAdapters:
     def test_careerjet_maps_apply_url_and_dates(self, monkeypatch):
