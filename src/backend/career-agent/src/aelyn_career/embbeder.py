@@ -7,7 +7,7 @@ import os
 import dotenv
 
 from aelyn.core.config import settings
-from aelyn_career.offer_cache import OfferCache, hash_offer
+from aelyn_career.offer_cache import OfferCache, default_offer_cache_path, hash_offer
 
 dotenv.load_dotenv()
 
@@ -73,7 +73,7 @@ class TextEmbbeder:
         )
         self._model = self.embedding_model
         self.default_where_to_save = os.getenv("EMBEDDINGS_DIR", "career-agent/src/aelyn_career")
-        self._offer_cache = OfferCache(Path(self.default_where_to_save) / "offers_cache.db")
+        self._offer_cache = OfferCache(default_offer_cache_path())
 
     def encode_text(self, text, where_to_save=None):
         if where_to_save:

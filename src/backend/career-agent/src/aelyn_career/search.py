@@ -12,15 +12,29 @@ import re
 from collections.abc import Iterable
 
 from aelyn_career.france_travail.offers import FTOffers
-from aelyn_career.job_sources import deduplicate_offers, enrich_offer, normalize_contract_type
+from aelyn_career.job_sources import deduplicate_offers, enrich_offer, normalize_contract_type, offer_identity_hash
+from aelyn_career.offer_cache import OfferCache, default_offer_cache_path
 from aelyn_career.source_adapters import available_source_adapters
+
+
+def _offer_company(offer: dict) -> str:
+    company = offer.get("entreprise") or offer.get("company") or {}
+    if isinstance(company, dict):
+        return str(company.get("nom") or company.get("name") or "")
+    return str(company or "")
 
 
 class JobSearchService:
     """Service unique qui masque la logique d'agrégation multi-source."""
 
-    def __init__(self, offers_agent: FTOffers | None = None):
+    def __init__(self, offers_agent: FTOffers | None = None, cache: OfferCache | None = None):
         self.offers_agent = offers_agent or FTOffers()
+        # Un seul fichier SQLite partagé avec les embeddings d'offres (cf.
+        # `default_offer_cache_path`) : persiste d'une recherche à l'autre,
+        # d'un redémarrage à l'autre - c'est tout le but (cf. `search`
+        # ci-dessous, qui priorise les offres jamais vues plutôt que de
+        # remontrer les mêmes à chaque appel sur les mêmes mots-clés).
+        self.cache = cache or OfferCache(default_offer_cache_path())
 
     def search(
         self,
@@ -119,7 +133,36 @@ class JobSearchService:
             ),
             reverse=True,
         )
-        return ordered[:limit]
+
+        # Priorise les offres jamais vues dans une recherche PASSÉE (pas
+        # seulement dédupliquées au sein de cet appel, cf.
+        # `deduplicate_offers` ci-dessus) : relancer la même recherche de
+        # mots-clés plus tard ne doit pas remontrer sans arrêt les mêmes
+        # offres comme si elles étaient neuves. Jamais un filtrage strict :
+        # si pas assez d'offres neuves, on complète avec les déjà-vues
+        # plutôt que de renvoyer moins de résultats que demandé.
+        already_seen = self.cache.seen_hashes()
+        for offer in ordered:
+            offer["already_seen"] = offer_identity_hash(offer) in already_seen
+        fresh = [offer for offer in ordered if not offer["already_seen"]]
+        stale = [offer for offer in ordered if offer["already_seen"]]
+        result = (fresh + stale)[:limit]
+
+        for offer in result:
+            self.cache.mark_seen(
+                offer_identity_hash(offer),
+                title=str(offer.get("intitule") or offer.get("title") or ""),
+                company=_offer_company(offer),
+                source=str(offer.get("source") or ""),
+                url=str(offer.get("url") or ""),
+            )
+        self.cache.log_search(
+            query=keywords or source_keywords,
+            contract_type=contract_type,
+            result_count=len(result),
+            new_count=sum(1 for offer in result if not offer["already_seen"]),
+        )
+        return result
 
 
 def normalize_filters(filters: Iterable[str] | None) -> list[str]:

@@ -9,6 +9,7 @@ from unittest.mock import Mock, patch
 import pytest
 
 from aelyn_career.france_travail.offers import FTOffers
+from aelyn_career.offer_cache import OfferCache
 from aelyn_career.search import JobSearchService
 from aelyn_career.source_adapters import CareerjetAdapter, RemoteOKAdapter
 
@@ -486,6 +487,53 @@ class TestJobSearchService:
                 service.search(keywords=None, limit=5)
 
         assert adapter.search.call_args.kwargs["keywords"] == "Data Scientist"
+
+    def test_search_prioritizes_never_seen_offers_over_already_seen_ones(self, monkeypatch, tmp_path):
+        """Relancer la même recherche de mots-clés plus tard ne doit pas
+        remontrer sans arrêt les mêmes offres comme si elles étaient
+        neuves (cf. OfferCache.mark_seen/seen_hashes)."""
+        monkeypatch.setenv("AELYN_ENABLE_PUBLIC_JOB_APIS", "false")
+        ft = FTOffers(access_token="token")
+        cache = OfferCache(tmp_path / "offers_cache.db")
+        service = JobSearchService(ft, cache=cache)
+        old_offer = {
+            "id": "1", "intitule": "Old Offer", "entreprise": {"nom": "ACME"},
+            "typeContrat": "CDI", "dateCreation": "2026-09-01",
+        }
+        new_offer = {
+            "id": "2", "intitule": "New Offer", "entreprise": {"nom": "ACME"},
+            "typeContrat": "CDI", "dateCreation": "2026-09-02",
+        }
+
+        with patch.object(ft, "search_offers", return_value=([old_offer], None)):
+            first = service.search(keywords="data scientist", limit=10)
+        assert first[0]["intitule"] == "Old Offer"
+        assert first[0]["already_seen"] is False
+
+        with patch.object(ft, "search_offers", return_value=([old_offer, new_offer], None)):
+            second = service.search(keywords="data scientist", limit=1)
+
+        assert second[0]["intitule"] == "New Offer"
+        assert second[0]["already_seen"] is False
+
+    def test_search_logs_each_call_with_new_and_total_counts(self, monkeypatch, tmp_path):
+        monkeypatch.setenv("AELYN_ENABLE_PUBLIC_JOB_APIS", "false")
+        ft = FTOffers(access_token="token")
+        cache = OfferCache(tmp_path / "offers_cache.db")
+        service = JobSearchService(ft, cache=cache)
+        offer = {
+            "id": "1", "intitule": "Data Scientist", "entreprise": {"nom": "ACME"},
+            "typeContrat": "CDI", "dateCreation": "2026-09-01",
+        }
+
+        with patch.object(ft, "search_offers", return_value=([offer], None)):
+            service.search(keywords="data scientist", limit=10)
+
+        logs = cache.recent_searches()
+        assert len(logs) == 1
+        assert logs[0].query == "data scientist"
+        assert logs[0].result_count == 1
+        assert logs[0].new_count == 1
 
 
 class TestAdditionalSourceAdapters:

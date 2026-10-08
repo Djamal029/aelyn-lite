@@ -196,6 +196,19 @@ def _source_key(offer: dict) -> tuple[str, ...]:
     )
 
 
+def offer_identity_hash(offer: dict) -> str:
+    """Empreinte stable d'une offre, STABLE D'UNE RECHERCHE À L'AUTRE (pas
+    juste au sein d'un seul appel comme `_source_key`/`deduplicate_offers`
+    ci-dessous) : même titre/entreprise/lieu/contrat -> même hash, que
+    l'offre revienne demain ou dans un mois, sur la même source ou une
+    autre. Utilisée par `OfferCache.mark_seen`/`seen_hashes`
+    (offer_cache.py) pour ne jamais remontrer comme neuve une offre déjà
+    vue dans une recherche passée (cf. `JobSearchService.search`)."""
+    from aelyn_career.offer_cache import hash_offer
+
+    return hash_offer("|".join(_source_key(offer)))
+
+
 def _merge_offer(primary: dict, incoming: dict) -> dict:
     merged = dict(primary)
     for key in (
