@@ -47,6 +47,18 @@ const FIELD_LABELS: Record<string, string> = {
   ALLOW_AUTONOMOUS_SEND: "Envoi autonome des mails",
   MAX_MAILS_PER_RUN: "Nombre maximum de mails par analyse",
   TV_CONFIGURED: "Télé configurée",
+  WAKE_TIMEOUT_SECONDS: "Délai avant mise en veille (secondes)",
+  CAMERA_ENTREE_INDEX: "Caméra de l'entrée (index)",
+  CAMERA_SALON_INDEX: "Caméra du salon (index)",
+  CANDIDATE_LEVEL: "Niveau de poste recherché",
+  WEIGHT_SCORE_TXT_MATCH: "Pondération du score texte",
+  WEIGHT_SCORE_COS: "Pondération du score cosinus",
+  FACE_MATCH_THRESHOLD: "Seuil de reconnaissance faciale",
+  KEYWORDS: "Mots-clés",
+  DEPARTMENT: "Départements",
+  LLM_MODEL: "Modèle principal",
+  LLM_MODEL_HEAVY: "Modèle avancé",
+  LLM_MODEL_CAREER: "Modèle carrière (CV / lettres)",
 };
 
 function fieldLabel(key: string): string {
@@ -442,7 +454,7 @@ export function Settings() {
           <form className={styles.editForm} onSubmit={handleSaveFields}>
             <div className={styles.fieldGrid}>
               <label className={styles.field}>
-                <span className={styles.fieldLabel}>WAKE_TIMEOUT_SECONDS</span>
+                <span className={styles.fieldLabel}>{fieldLabel("WAKE_TIMEOUT_SECONDS")}</span>
                 <input
                   type="number"
                   min={10}
@@ -458,7 +470,7 @@ export function Settings() {
               </label>
 
               {!LITE_MODE ? <label className={styles.field}>
-                <span className={styles.fieldLabel}>CAMERA_ENTREE_INDEX</span>
+                <span className={styles.fieldLabel}>{fieldLabel("CAMERA_ENTREE_INDEX")}</span>
                 <input
                   type="number"
                   min={0}
@@ -473,7 +485,7 @@ export function Settings() {
               </label> : null}
 
               {!LITE_MODE ? <label className={styles.field}>
-                <span className={styles.fieldLabel}>CAMERA_SALON_INDEX</span>
+                <span className={styles.fieldLabel}>{fieldLabel("CAMERA_SALON_INDEX")}</span>
                 <input
                   type="number"
                   min={0}
@@ -488,7 +500,7 @@ export function Settings() {
               </label> : null}
 
               <label className={styles.field}>
-                <span className={styles.fieldLabel}>CANDIDATE_LEVEL</span>
+                <span className={styles.fieldLabel}>{fieldLabel("CANDIDATE_LEVEL")}</span>
                 <select
                   className={styles.fieldInput}
                   disabled={!unlocked || fieldsSaving}
@@ -505,7 +517,7 @@ export function Settings() {
               </label>
 
               <label className={styles.field}>
-                <span className={styles.fieldLabel}>WEIGHT_SCORE_TXT_MATCH</span>
+                <span className={styles.fieldLabel}>{fieldLabel("WEIGHT_SCORE_TXT_MATCH")}</span>
                 <input
                   type="number"
                   min={0}
@@ -523,7 +535,7 @@ export function Settings() {
               </label>
 
               <label className={styles.field}>
-                <span className={styles.fieldLabel}>WEIGHT_SCORE_COS</span>
+                <span className={styles.fieldLabel}>{fieldLabel("WEIGHT_SCORE_COS")}</span>
                 <input
                   type="number"
                   min={0}
@@ -539,7 +551,7 @@ export function Settings() {
               </label>
 
               {!LITE_MODE ? <label className={styles.field}>
-                <span className={styles.fieldLabel}>FACE_MATCH_THRESHOLD</span>
+                <span className={styles.fieldLabel}>{fieldLabel("FACE_MATCH_THRESHOLD")}</span>
                 <input
                   type="number"
                   min={0}
@@ -557,7 +569,7 @@ export function Settings() {
               </label> : null}
 
               <label className={[styles.field, styles.fieldWide].join(" ")}>
-                <span className={styles.fieldLabel}>KEYWORDS</span>
+                <span className={styles.fieldLabel}>{fieldLabel("KEYWORDS")}</span>
                 <input
                   type="text"
                   className={styles.fieldInput}
@@ -571,7 +583,7 @@ export function Settings() {
               </label>
 
               <label className={[styles.field, styles.fieldWide].join(" ")}>
-                <span className={styles.fieldLabel}>DEPARTMENT</span>
+                <span className={styles.fieldLabel}>{fieldLabel("DEPARTMENT")}</span>
                 <input
                   type="text"
                   className={styles.fieldInput}
@@ -610,7 +622,7 @@ export function Settings() {
             ) : (
               <div className={styles.fieldGrid}>
                 <label className={styles.field}>
-                  <span className={styles.fieldLabel}>LLM_MODEL</span>
+                  <span className={styles.fieldLabel}>{fieldLabel("LLM_MODEL")}</span>
                   <select
                     className={styles.fieldInput}
                     disabled={!unlocked || modelsSaving}
@@ -627,7 +639,7 @@ export function Settings() {
                 </label>
 
                 <label className={styles.field}>
-                  <span className={styles.fieldLabel}>LLM_MODEL_HEAVY</span>
+                  <span className={styles.fieldLabel}>{fieldLabel("LLM_MODEL_HEAVY")}</span>
                   <select
                     className={styles.fieldInput}
                     disabled={!unlocked || modelsSaving}
@@ -644,7 +656,7 @@ export function Settings() {
                 </label>
 
                 <label className={styles.field}>
-                  <span className={styles.fieldLabel}>LLM_MODEL_CAREER</span>
+                  <span className={styles.fieldLabel}>{fieldLabel("LLM_MODEL_CAREER")}</span>
                   <select
                     className={styles.fieldInput}
                     disabled={!unlocked || modelsSaving}
