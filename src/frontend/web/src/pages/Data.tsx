@@ -113,12 +113,29 @@ export function Data() {
                   {formatMemory(resources.ram.used_mb)} sur {formatMemory(resources.ram.total_mb)}
                 </span>
               </div>
-              <div className={styles.metric}>
-                <RadialGauge label="Disque" percent={resources.disk.percent} displayValue={`${Math.round(resources.disk.percent)}%`} color="var(--state-amber)" size={68} />
-                <span className={styles.metricNote}>
-                  {resources.disk.used_gb.toFixed(1)} Go sur {resources.disk.total_gb.toFixed(1)} Go
-                </span>
-              </div>
+              {resources.disks && resources.disks.length > 0 ? (
+                resources.disks.map((disk) => (
+                  <div className={styles.metric} key={disk.mountpoint}>
+                    <RadialGauge
+                      label={`Disque ${disk.mountpoint.replace(/[\\/]+$/, "")}`}
+                      percent={disk.percent}
+                      displayValue={`${Math.round(disk.percent)}%`}
+                      color="var(--state-amber)"
+                      size={68}
+                    />
+                    <span className={styles.metricNote}>
+                      {disk.used_gb.toFixed(1)} Go sur {disk.total_gb.toFixed(1)} Go
+                    </span>
+                  </div>
+                ))
+              ) : (
+                <div className={styles.metric}>
+                  <RadialGauge label="Disque" percent={resources.disk.percent} displayValue={`${Math.round(resources.disk.percent)}%`} color="var(--state-amber)" size={68} />
+                  <span className={styles.metricNote}>
+                    {resources.disk.used_gb.toFixed(1)} Go sur {resources.disk.total_gb.toFixed(1)} Go
+                  </span>
+                </div>
+              )}
               {resources.gpu.available ? (
                 <div className={styles.metric}>
                   <RadialGauge label="GPU" percent={resources.gpu.utilization_percent} displayValue={`${Math.round(resources.gpu.utilization_percent)}%`} color="var(--state-blue)" size={68} />
