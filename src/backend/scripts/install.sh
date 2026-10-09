@@ -75,7 +75,7 @@ t() {
       err_uv) echo "uv still not found after attempting to install it automatically (no internet access, or an unsupported setup). Install it by hand: https://docs.astral.sh/uv/getting-started/installation/, then re-run this script." ;;
       info_installing_uv) echo "uv not found, installing it automatically..." ;;
       info_installing_ollama) echo "Ollama not found, installing it automatically (Linux only)..." ;;
-      err_ollama_missing) echo "Ollama not found. Install it: https://ollama.com/download" ;;
+      err_ollama_missing) echo "Ollama still not found (automatic install failed or was not attempted: it needs sudo on Linux, or winget on Windows). Install it by hand: https://ollama.com/download, then re-run this script." ;;
       err_ollama_down) echo "Ollama is installed but not responding. Run 'ollama serve' in another terminal, then re-run this script." ;;
       err_npm) echo "npm not found. Install Node.js: https://nodejs.org" ;;
       warn_espeak) echo "espeak-ng not found (Kokoro voice unavailable without it)." ;;
@@ -157,7 +157,7 @@ t() {
       err_uv) echo "uv reste introuvable même après une tentative d'installation automatique (pas d'accès internet, ou configuration non prise en charge). Installe-le à la main : https://docs.astral.sh/uv/getting-started/installation/, puis relance ce script." ;;
       info_installing_uv) echo "uv introuvable, installation automatique en cours..." ;;
       info_installing_ollama) echo "Ollama introuvable, installation automatique en cours (Linux uniquement)..." ;;
-      err_ollama_missing) echo "Ollama est introuvable. Installe-le : https://ollama.com/download" ;;
+      err_ollama_missing) echo "Ollama reste introuvable (l'install automatique a échoué ou n'a pas été tentée : elle demande sudo sur Linux, ou winget sur Windows). Installe-le à la main : https://ollama.com/download, puis relance ce script." ;;
       err_ollama_down) echo "Ollama est installé mais ne répond pas. Lance 'ollama serve' dans un autre terminal puis relance ce script." ;;
       err_npm) echo "npm est introuvable. Installe Node.js : https://nodejs.org" ;;
       warn_espeak) echo "espeak-ng introuvable (voix Kokoro indisponible sans lui)." ;;
@@ -254,15 +254,26 @@ fi
 echo "  uv : $(uv --version)"
 
 if ! command -v ollama >/dev/null 2>&1; then
-  # Auto-installable de façon fiable UNIQUEMENT sur Linux (installateur
-  # officiel en une ligne, cf. https://ollama.com/download/linux). Sur
-  # macOS (.app/.dmg) et Windows (installeur graphique .exe), aucune
-  # méthode silencieuse aussi fiable n'existe : on garde le lien manuel
+  # Linux : installateur officiel en une ligne (peut demander le mot de
+  # passe sudo - installe le binaire ET le service systemd - d'où le
+  # message d'erreur plus bas qui le rappelle si l'auto-install échoue
+  # malgré tout). Windows : `winget` (préinstallé sur Windows 10
+  # 1709+/11) permet une install silencieuse, sans télécharger/lancer
+  # l'installeur graphique à la main. macOS (.app/.dmg) ou `winget`
+  # absent : aucune méthode silencieuse fiable, on garde le lien manuel
   # plutôt que de risquer une install à moitié faite sans que
   # l'utilisateur ne s'en aperçoive.
   if [ "$(uname -s 2>/dev/null)" = "Linux" ]; then
     warn "$(t info_installing_ollama)"
     curl -fsSL https://ollama.com/install.sh | sh || true
+  elif command -v winget >/dev/null 2>&1; then
+    warn "$(t info_installing_ollama)"
+    winget install --id Ollama.Ollama -e --silent \
+      --accept-package-agreements --accept-source-agreements || true
+    # L'installeur winget met à jour le PATH système pour les PROCHAINS
+    # terminaux, jamais repris par CE process déjà démarré (même raison
+    # que pour `uv` plus haut) : complète le PATH de cette exécution.
+    export PATH="$USERPROFILE/AppData/Local/Programs/Ollama:$PATH"
   fi
   if ! command -v ollama >/dev/null 2>&1; then
     err "$(t err_ollama_missing)"
