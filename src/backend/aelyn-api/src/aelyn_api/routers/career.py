@@ -323,7 +323,7 @@ def apply_by_mail(
     except LLMError as exc:
         raise HTTPException(502, f"LLM indisponible : {exc}") from exc
 
-    cv_pdf = cv_to_pdf_bytes(cv, header_lines=[writer.contact_header()])
+    cv_pdf = cv_to_pdf_bytes(cv, header_lines=writer.contact_header().split("\n"))
     lm_pdf = cover_letter_to_pdf_bytes(lettre)
 
     try:

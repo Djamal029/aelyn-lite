@@ -75,7 +75,7 @@ def make_profile() -> dict:
                     "company": "Centre MURAZ",
                     "period": "August 2023 - December 2023",
                     "location": "Bobo-Dioulasso, Burkina Faso",
-                    "description": "Statistical analyses for public health research.",
+                    "description": "Analyses statistiques au service de la recherche en santé publique.",
                     "highlights": ["Performed exploratory multivariate analyses"],
                 },
                 {
@@ -84,7 +84,9 @@ def make_profile() -> dict:
                     "period": "January 2024 - April 2024",
                     "location": "Bobo-Dioulasso, Burkina Faso",
                     "description": (
-                        "Evaluation of malaria-reduction interventions with mixed models."
+                        "Évaluation d'interventions de santé publique pour réduire "
+                        "l'incidence du paludisme, à l'aide de modèles mixtes de Poisson "
+                        "et binomiale négative (environ 42% de réduction estimée)."
                     ),
                     "highlights": [
                         (
@@ -147,7 +149,10 @@ def test_cv_keeps_distinct_same_employer_experiences_and_omitted_recent_period()
         "January 2024 - April 2024",
         "August 2023 - December 2023",
     ]
-    assert any("approximately 42% reduction" in bullet for bullet in muraz[0].puces)
+    # `highlights`/`results` de ce test sont en anglais (reflète le profil
+    # réel pour cette entrée) : `_fallback_experience_bullets` les filtre
+    # (`_looks_french`) et retombe sur `description`, en français.
+    assert any("42% de réduction" in bullet for bullet in muraz[0].puces)
     assert len(validated) == 4
 
 
@@ -185,6 +190,8 @@ def test_cv_replaces_llm_period_with_exact_profile_period():
     )
 
     assert january_muraz.entreprise == "Centre MURAZ"
+    # `highlights` est en anglais pour cette entrée : le fallback retombe
+    # sur `description` (français), qui mentionne aussi "Poisson".
     assert any("Poisson" in bullet for bullet in january_muraz.puces)
 
 
@@ -226,7 +233,10 @@ def test_draft_cv_rebuilds_from_profile_when_llm_returns_invalid_evidence_ids(mo
     servier = next(exp for exp in cv.experiences if exp.entreprise == "Servier France")
     festival = next(exp for exp in cv.experiences if exp.entreprise == "Les Vieilles Charrues")
     assert all("volunteer" not in bullet.lower() for bullet in servier.puces)
-    assert any("volunteer" in bullet.lower() for bullet in festival.puces)
+    # `highlights` ("volunteer applications") est en anglais pour cette
+    # entrée : filtré par `_looks_french`, le fallback retombe sur
+    # `description` ("bénévoles"), en français.
+    assert any("bénévoles" in bullet.lower() for bullet in festival.puces)
     assert [(project.titre, project.description) for project in cv.projets] == [
         ("Statistical trial analysis", "Analysis of trial outcomes.")
     ]

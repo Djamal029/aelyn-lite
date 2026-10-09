@@ -366,15 +366,38 @@ class ApplicationWriter:
         return validated
 
     @staticmethod
-    def _fallback_experience_bullets(meta: dict) -> list[str]:
-        """Utilise les faits du profil pour préserver une expérience omise."""
-        highlights = list(meta.get("highlights", []))
-        results = [str(value) for value in meta.get("results", {}).values()]
+    def _looks_french(text: str) -> bool:
+        """Heuristique légère : certaines expériences de profil.json ont
+        des `highlights`/`results` rédigés en anglais (jamais traduits),
+        jamais vus avant qu'un vrai CV en français ne les affiche tels
+        quels (bug réel observé). Pas de dépendance de détection de
+        langue pour un cas aussi simple : la quasi-totalité des phrases en
+        français de ce profil contiennent un caractère accentué ; celles
+        qui n'en contiennent aucun sont, en pratique, systématiquement les
+        passages laissés en anglais."""
+        return any(ch in text for ch in "éèêëàâäùûüôöîïçÉÈÊÀÂÙÛÔÎÇ")
+
+    def _fallback_experience_bullets(self, meta: dict) -> list[str]:
+        """Utilise les faits du profil pour préserver une expérience omise.
+        Ne retient highlights/results que s'ils sont en français (cf.
+        `_looks_french`) ; sinon, retombe sur les phrases de `description`
+        (toujours en français dans ce profil), plutôt que d'afficher de
+        l'anglais sur un CV en français."""
+        highlights = [h for h in meta.get("highlights", []) if self._looks_french(h)]
+        results = [
+            str(value) for value in meta.get("results", {}).values()
+            if self._looks_french(str(value))
+        ]
         description = meta.get("description", "").strip()
         bullets = highlights[:2] if results else highlights[:3]
         bullets.extend(results[: 3 - len(bullets)])
-        if not bullets and description:
-            bullets = [description[:200]]
+        if len(bullets) < 2 and description:
+            sentences = [s.strip() for s in description.split(". ") if s.strip()]
+            for sentence in sentences:
+                if len(bullets) >= 3:
+                    break
+                if sentence not in bullets:
+                    bullets.append(sentence if sentence.endswith(".") else sentence + ".")
         return bullets[:3]
 
     def _validate_projets(self, projets: list[CVProjet]) -> list[CVProjet]:
@@ -706,13 +729,31 @@ class ApplicationWriter:
         ]
         return self._validate_projets(proposed)
 
+    # Libellés humains pour les clés techniques de profil.json
+    # (`skills.<clé>`, ex. "machine_learning_deep_learning") : jamais
+    # affichées telles quelles sur un CV, cf. bug réel observé (catégories
+    # en snake_case sur la pièce jointe "postuler par mail").
+    _CATEGORY_LABELS = {
+        "bayesian_inference": "Inférence bayésienne",
+        "machine_learning_deep_learning": "Machine learning & deep learning",
+        "computer_vision": "Vision par ordinateur",
+        "statistics": "Statistiques",
+        "programming_languages": "Langages de programmation",
+        "tools_and_frameworks": "Outils & frameworks",
+    }
+
     def _profile_competences_for_cv(self, selection: ApplicationSelection) -> dict[str, list[str]]:
         _, _, skills, _ = self._selection_records()
         proposed: dict[str, list[str]] = {}
         for index in selection.skill_indices[:10]:
             item = skills[index]
             proposed.setdefault(item["category"], []).append(item["skill"])
-        return self._real_competences(proposed)
+        validated = self._real_competences(proposed)
+        # Relabellisé APRES validation : `_real_competences` valide en
+        # comparant aux vraies clés de profil.json (snake_case) et renvoie
+        # ces mêmes clés brutes - les traduire avant casserait la
+        # comparaison et viderait silencieusement toutes les compétences.
+        return {self._CATEGORY_LABELS.get(key, key): values for key, values in validated.items()}
 
     def _profile_certifications_for_cv(self, selection: ApplicationSelection) -> list[str]:
         _, _, _, certifications = self._selection_records()
@@ -811,20 +852,24 @@ class ApplicationWriter:
             employer = _single_line(meta.get("company"))
             period = _single_line(meta.get("period"))
             description = _single_line(meta.get("description"))
-            # Phrase d'intro naturelle ("En tant que X chez Y (période), ...")
-            # plutôt qu'un en-tête suivi d'une citation entre guillemets : la
-            # description de profil.json est déjà une phrase complète bien
-            # écrite, pas besoin de la présenter comme une citation rapportée.
-            intro = "En tant que"
+            # Deux phrases COMPLETES et INDEPENDANTES plutôt qu'une seule
+            # phrase fusionnée ("En tant que X (période), <description>") :
+            # la description de profil.json ne continue pas forcément
+            # grammaticalement après une virgule (elle commence souvent par
+            # sa propre majuscule, ex. "Stage de quatre mois..."), ce qui
+            # produisait une phrase cassée. Deux phrases séparées restent
+            # grammaticalement correctes quelle que soit la forme du texte
+            # source.
+            intro = "J'ai occupé le poste de" if role else "J'ai travaillé"
             if role:
                 intro += f" {role}"
             if employer:
                 intro += f" chez {employer}"
             if period:
                 intro += f" ({period})"
+            paragraphs.append(intro + ".")
             if description:
-                first_char = description[:1].lower() if description[:1].isupper() else description[:1]
-                paragraphs.append(f"{intro}, {first_char}{description[1:]}")
+                paragraphs.append(description)
             # `highlights` (quand présent) est en anglais dans profil.json
             # pour certaines expériences : jamais mélangé à une lettre en
             # français, `description` suffit toujours comme fait source.
