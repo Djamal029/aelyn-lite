@@ -174,8 +174,10 @@ uv sync --extra voice
 cp .env.example .env
 ```
 
-Édite `.env`, au minimum `EMAIL_USER` / `EMAIL_PASS` pour que l'agent démarre (voir
-[Configuration](#configuration-env) plus bas pour le détail de chaque variable).
+Édite `.env` selon tes besoins (voir [Configuration](#configuration-env) plus bas pour
+le détail de chaque variable). `EMAIL_USER`/`EMAIL_PASS` sont optionnels : l'API/le CLI
+démarrent très bien sans, seules les fonctionnalités mail (triage, réponses, "postuler
+par mail") échouent alors avec un message clair plutôt qu'au démarrage.
 
 ### Modèles Ollama
 

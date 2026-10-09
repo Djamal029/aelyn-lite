@@ -53,8 +53,21 @@ class Settings(BaseModel):
     user_city: str | None = None
 
     # --- Messagerie ---
-    email_user: str
-    email_pass: str
+    # Optionnels (pas de valeur par défaut qui raterait silencieusement) :
+    # bug réel rencontré en direct, `EMAIL_PASS` nécessite un mot de passe
+    # d'application Gmail (plusieurs étapes hors terminal), `install.sh`
+    # le laisse donc volontairement vide avec un rappel en fin
+    # d'installation plutôt que de bloquer dessus - mais `email_user`/
+    # `email_pass` étaient des champs Pydantic REQUIS ici, et `settings`
+    # est construit à l'IMPORT du module (ligne ~295) : toute l'API/le CLI
+    # plantait donc au démarrage tant que ce rappel n'était pas suivi,
+    # malgré le flux d'installation qui annonçait pouvoir le faire plus
+    # tard. Le reste d'AELYN fonctionne très bien sans (seules les
+    # fonctionnalités mail - `EmailAgent`, `POST /career/*/apply-by-mail`
+    # - échouent avec un message clair si on les utilise sans ces deux
+    # variables, cf. `aelyn_email.client`).
+    email_user: str | None = None
+    email_pass: str | None = None
     imap_server: str = "imap.gmail.com"
     imap_port: int = 993
     smtp_server: str = "smtp.gmail.com"
@@ -240,22 +253,17 @@ class Settings(BaseModel):
 
 @lru_cache
 def get_settings() -> Settings:
-    missing = [name for name in ("EMAIL_USER", "EMAIL_PASS") if not os.getenv(name)]
-    if missing:
-        raise RuntimeError(
-            "Variables d'environnement manquantes : "
-            f"{', '.join(missing)} (voir .env)"
-        )
-    email_user = os.environ["EMAIL_USER"]
+    email_user = os.getenv("EMAIL_USER") or None
+    default_user_name = email_user.split("@")[0] if email_user else "toi"
     return Settings(
-        user_name=os.getenv("USER_NAME") or email_user.split("@")[0],
+        user_name=os.getenv("USER_NAME") or default_user_name,
         user_full_name=os.getenv("USER_FULL_NAME") or None,
         user_contact_email=os.getenv("USER_CONTACT_EMAIL") or None,
         user_phone=os.getenv("USER_PHONE") or None,
         user_linkedin=os.getenv("USER_LINKEDIN") or None,
         user_city=os.getenv("USER_CITY") or None,
         email_user=email_user,
-        email_pass=os.environ["EMAIL_PASS"],
+        email_pass=os.getenv("EMAIL_PASS") or None,
         imap_server=os.getenv("IMAP_SERVER", "imap.gmail.com"),
         imap_port=_env_int("IMAP_PORT", 993),
         smtp_server=os.getenv("SMTP_SERVER", "smtp.gmail.com"),

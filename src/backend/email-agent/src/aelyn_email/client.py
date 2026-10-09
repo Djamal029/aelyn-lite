@@ -30,6 +30,19 @@ class MailboxError(RuntimeError):
     pass
 
 
+def _require_credentials() -> None:
+    """`EMAIL_USER`/`EMAIL_PASS` sont optionnels au niveau config (cf.
+    `core/config.py`) : l'API/le CLI démarrent très bien sans, seule une
+    action mail réelle doit échouer, avec un message clair plutôt qu'un
+    `TypeError`/`imaplib`/`smtplib` brut sur un identifiant `None`."""
+    if not settings.email_user or not settings.email_pass:
+        raise MailboxError(
+            "Messagerie non configurée : renseigne EMAIL_USER et EMAIL_PASS "
+            "dans .env (un mot de passe d'application Gmail, pas ton mot de "
+            "passe normal : https://myaccount.google.com/apppasswords)."
+        )
+
+
 @contextmanager
 def imap_session(mailbox: str = "INBOX") -> Iterator[imaplib.IMAP4_SSL]:
     """Connexion IMAP à durée de vie explicite.
@@ -37,6 +50,7 @@ def imap_session(mailbox: str = "INBOX") -> Iterator[imaplib.IMAP4_SSL]:
     Une connexion IMAP expire côté serveur : on ne la garde pas dans un
     singleton, on l'ouvre pour la durée d'une opération.
     """
+    _require_credentials()
     try:
         conn = imaplib.IMAP4_SSL(settings.imap_server, settings.imap_port)
     except OSError as exc:
@@ -107,6 +121,7 @@ def archive(uid: str, folder: str = "Archive") -> None:
 
 
 def send_reply(*, to: str, subject: str, body: str, in_reply_to: str | None = None) -> None:
+    _require_credentials()
     msg = EmailMessage()
     msg["From"] = settings.email_user
     msg["To"] = to
@@ -130,6 +145,7 @@ def send_mail_with_attachments(
     jointes. `attachments` : liste de `(nom_fichier, contenu, sous_type)`,
     ex. `("CV.pdf", pdf_bytes, "pdf")` ; `maintype` toujours `application`,
     seul cas d'usage actuel (CV/LM en PDF, cf. career.py)."""
+    _require_credentials()
     msg = EmailMessage()
     msg["From"] = settings.email_user
     msg["To"] = to
