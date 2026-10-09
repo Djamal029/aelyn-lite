@@ -323,6 +323,15 @@ def apply_by_mail(
     except LLMError as exc:
         raise HTTPException(502, f"LLM indisponible : {exc}") from exc
 
+    # Document final envoyé à un vrai employeur : on investit le temps
+    # LLM ici pour le style (verbes d'action forts, prose moins mécanique),
+    # contrairement à l'aperçu rapide dans le chat (CV/LM restent
+    # déterministes là-bas). Chaque polish retombe silencieusement sur la
+    # version déterministe en cas d'échec (LLM indisponible, ou faits
+    # altérés) : jamais d'erreur ici pour un simple échec de style.
+    cv = writer.polish_cv_with_llm(cv)
+    lettre = writer.polish_cover_letter_with_llm(lettre)
+
     cv_pdf = cv_to_pdf_bytes(cv, header_lines=writer.contact_header().split("\n"))
     lm_pdf = cover_letter_to_pdf_bytes(lettre)
 

@@ -584,12 +584,21 @@ class TestApplyByMail:
             "description": "Analyse de données.",
         }
         writer = MagicMock()
-        writer.draft_cv.return_value = CVContent(
+        cv = CVContent(
             profil="Profil", experiences=[], projets=[], competences={},
             formation=[], certifications=[], langues=[], centres_interet=[],
         )
+        writer.draft_cv.return_value = cv
         writer.draft_cover_letter.return_value = "Madame, Monsieur,\n\nCandidature..."
         writer.contact_header.return_value = "Djamal TOE"
+        # Le polish LLM reçoit ce que `draft_cv`/`draft_cover_letter` ont
+        # renvoyé : sur un writer entièrement mocké, il faut aussi fixer ces
+        # retours sinon `cv_to_pdf_bytes` reçoit un MagicMock au lieu d'un
+        # vrai `CVContent`.
+        writer.polish_cv_with_llm.return_value = cv
+        writer.polish_cover_letter_with_llm.return_value = (
+            writer.draft_cover_letter.return_value
+        )
 
         sent = {}
 

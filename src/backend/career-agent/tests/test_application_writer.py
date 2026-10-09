@@ -2,7 +2,7 @@ from unittest.mock import Mock, patch
 
 from aelyn.core.config import settings
 from aelyn_career.application_writer import ApplicationSelection, ApplicationWriter, _merge_indices
-from aelyn_career.models import CVExperience
+from aelyn_career.models import CVContent, CVExperience
 from aelyn_career.profil_manager import ProfilManager, validate_profil_structure
 
 
@@ -107,7 +107,9 @@ def make_profile() -> dict:
 
 
 def make_writer() -> ApplicationWriter:
-    return ApplicationWriter(ProfilManager(make_profile()), llm=Mock())
+    return ApplicationWriter(
+        ProfilManager(make_profile()), llm=Mock(), llm_heavy=Mock()
+    )
 
 
 def test_profile_chunks_include_experience_highlights_methods_and_results():
@@ -361,3 +363,136 @@ def test_profile_validation_rejects_missing_location_before_profile_is_saved():
     errors = validate_profil_structure(profile)
 
     assert any("experience[0]" in error and "location" in error for error in errors)
+
+
+def test_facts_preserved_rejects_a_changed_number():
+    writer = make_writer()
+    original = "Réduction de 42% du paludisme."
+    altered = "Réduction de 45% du paludisme."
+    assert writer._facts_preserved(original, altered) is False
+
+
+def test_facts_preserved_rejects_a_dropped_number():
+    writer = make_writer()
+    original = "Étude de 7500 bénévoles avec Python."
+    dropped = "Étude de bénévoles avec Python."
+    assert writer._facts_preserved(original, dropped) is False
+
+
+def test_facts_preserved_accepts_same_facts_reworded():
+    writer = make_writer()
+    original = "Nouvelle méthodologie pour Servier avec Stan et 42% de réduction."
+    reworded = (
+        "Conçu une nouvelle méthodologie chez Servier avec Stan, "
+        "pour 42% de réduction."
+    )
+    assert writer._facts_preserved(original, reworded) is True
+
+
+def test_polish_cv_with_llm_uses_rewritten_bullets_when_facts_preserved():
+    writer = make_writer()
+    cv = writer.draft_cv("Data Scientist\nDescription de l'offre")
+    servier = next(e for e in cv.experiences if e.entreprise == "Servier France")
+    original_count = len(servier.puces)
+    writer.llm_heavy.text.return_value = "\n".join(f"Conçu {p}" for p in servier.puces)
+
+    polished = writer.polish_cv_with_llm(cv)
+
+    polished_servier = next(
+        e for e in polished.experiences if e.entreprise == "Servier France"
+    )
+    assert len(polished_servier.puces) == original_count
+    assert all(p.startswith("Conçu ") for p in polished_servier.puces)
+
+
+def test_polish_cv_with_llm_falls_back_when_verb_agreement_is_wrong():
+    writer = make_writer()
+    cv = CVContent(
+        profil="Profil",
+        experiences=[
+            CVExperience(
+                role="Stagiaire Data Scientist",
+                entreprise="Servier France",
+                periode="2026",
+                puces=["Analyses statistiques des essais cliniques chez Servier."],
+            )
+        ],
+        projets=[], competences={}, formation=[], certifications=[],
+        langues=[], centres_interet=[],
+    )
+    # "Analysées" (accord fautif, pas la forme invariante attendue "Analysé")
+    # : observé en direct sur gemma3:4b, doit être rejeté.
+    writer.llm_heavy.text.return_value = (
+        "Analysées statistiques des essais cliniques chez Servier."
+    )
+
+    polished = writer.polish_cv_with_llm(cv)
+
+    assert polished.experiences == cv.experiences
+
+
+def test_polish_cv_with_llm_falls_back_when_llm_call_fails():
+    writer = make_writer()
+    cv = writer.draft_cv("Data Scientist\nDescription de l'offre")
+    writer.llm_heavy.text.side_effect = Exception("modèle indisponible")
+
+    polished = writer.polish_cv_with_llm(cv)
+
+    assert polished.experiences == cv.experiences
+
+
+def test_polish_cv_with_llm_falls_back_when_a_bullet_drops_a_fact():
+    writer = make_writer()
+    cv = CVContent(
+        profil="Profil",
+        experiences=[
+            CVExperience(
+                role="Stagiaire Data Scientist",
+                entreprise="Servier France",
+                periode="2026",
+                puces=["Conçu un modèle réduisant les délais de 42% chez Servier."],
+            )
+        ],
+        projets=[], competences={}, formation=[], certifications=[],
+        langues=[], centres_interet=[],
+    )
+    # Reformulation qui omet "42%" (présent dans la puce d'origine) : doit
+    # être rejetée, jamais acceptée telle quelle.
+    writer.llm_heavy.text.return_value = (
+        "Conçu un modèle réduisant les délais chez Servier."
+    )
+
+    polished = writer.polish_cv_with_llm(cv)
+
+    assert polished.experiences == cv.experiences
+
+
+def test_polish_cover_letter_with_llm_uses_rewrite_when_facts_preserved():
+    writer = make_writer()
+    letter = (
+        "Djamal TOE\nParis\n\n"
+        "J'ai travaillé chez Servier sur 7500 dossiers avec Stan."
+    )
+    writer.llm.text.return_value = (
+        "J'ai contribué chez Servier à l'analyse de 7500 dossiers via Stan."
+    )
+
+    polished = writer.polish_cover_letter_with_llm(letter)
+
+    assert "contribué" in polished
+    assert polished.startswith("Djamal TOE\nParis")
+
+
+def test_polish_cover_letter_with_llm_falls_back_when_a_number_is_altered():
+    writer = make_writer()
+    letter = (
+        "Djamal TOE\nParis\n\n"
+        "J'ai travaillé chez Servier sur 7500 dossiers avec Stan."
+    )
+    writer.llm_heavy.text.return_value = (
+        "J'ai travaillé chez Servier sur 8000 dossiers avec Stan."
+    )
+
+    polished = writer.polish_cover_letter_with_llm(letter)
+
+    assert polished == letter

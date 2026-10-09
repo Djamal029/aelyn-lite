@@ -345,6 +345,48 @@ Règles :
 - Réponds directement par le texte, sans commentaire ni introduction.
 """
 
+SYSTEM_POLISH_CV_BULLETS = """Tu reformules des puces de CV déjà vérifiées
+(chaque fait qu'elles contiennent est réel, vient du profil de
+l'utilisateur). Ton seul travail est le STYLE, jamais le contenu.
+
+Règles strictes :
+- Chaque puce doit commencer par un verbe d'action fort au participe
+  passé (ex. Conçu, Développé, Modélisé, Automatisé, Analysé, Présenté,
+  Dirigé, Construit, Évalué, Déployé) - jamais une phrase nominale ("Nouvelle
+  méthodologie..."), jamais "J'ai".
+- INTERDIT d'ajouter un fait, un chiffre, une technologie, un résultat qui
+  n'est pas déjà dans le texte fourni.
+- INTERDIT de supprimer un chiffre, un pourcentage, ou un nom
+  technique/propre déjà présent.
+- Même nombre de puces en sortie qu'en entrée, dans le même ordre.
+- Phrases concises (une ligne), en français.
+
+Réponds avec une puce reformulée par ligne, exactement autant de lignes
+que de puces fournies, dans le même ordre. Pas de JSON, pas de
+numérotation, pas de tiret ni de puce visuelle en début de ligne, pas de
+commentaire ni d'introduction : juste le texte de chaque puce, une par
+ligne.
+"""
+
+SYSTEM_POLISH_COVER_LETTER = """Tu reformules le corps d'une lettre de
+motivation déjà rédigée à partir de faits vérifiés (expériences,
+résultats, compétences réels de l'utilisateur). Ton seul travail est
+d'améliorer le style et la fluidité, jamais d'ajouter ou de retirer un
+fait.
+
+Règles strictes :
+- INTERDIT d'ajouter un fait, un chiffre, une expérience, une compétence
+  qui n'est pas déjà dans le texte fourni.
+- INTERDIT de supprimer un chiffre, un pourcentage, ou un nom
+  technique/propre déjà présent.
+- Garde la structure globale (objet, formule d'appel, paragraphes,
+  formule de politesse finale) mais peux fusionner des phrases courtes et
+  mécaniques en une prose plus naturelle et plus substantielle.
+- Reste en français, registre professionnel, pas de familiarité.
+
+Réponds uniquement avec le texte reformulé de la lettre, rien d'autre
+(pas de commentaire, pas d'introduction)."""
+
 SYSTEM_REPORT = """Tu es AELYN (Ca se pronone AELYNE). On te donne le journal factuel de tes actions.
 
 Tu le restitues en français, en quelques phrases naturelles.
