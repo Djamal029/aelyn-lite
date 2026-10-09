@@ -14,6 +14,11 @@ interface ChatResultTableProps {
    * ajouter le résultat). */
   onPrepareCvs?: (offers: { id: string; title: string }[]) => void;
   onPrepareCoverLetters?: (offers: { id: string; title: string }[]) => void;
+  /** Génère le CV + la lettre en PDF et les envoie par mail à
+   * l'utilisateur lui-même (jamais à l'employeur, cf. apply-by-mail côté
+   * API) : toujours une action explicite par clic, jamais déclenchée
+   * automatiquement. */
+  onApplyByMail?: (offers: { id: string; title: string }[]) => void;
 }
 
 function formatMailDate(value: string | null): string {
@@ -81,7 +86,7 @@ function offerSource(o: ApiOfferResult): string {
  * language as EventsTable (components/security/EventsTable.tsx) so it
  * reads as one system rather than a one-off style. Used by ChatMessage
  * whenever `resultType`/`results` are present on an AELYN turn. */
-export function ChatResultTable({ resultType, results, onPrepareCvs, onPrepareCoverLetters }: ChatResultTableProps) {
+export function ChatResultTable({ resultType, results, onPrepareCvs, onPrepareCoverLetters, onApplyByMail }: ChatResultTableProps) {
   // Un seul état de sélection pour toute la vie du composant : React lui
   // donne une identité stable tant que la position dans l'arbre ne change
   // pas (même si `results` change de contenu), donc pas besoin de la
@@ -93,7 +98,7 @@ export function ChatResultTable({ resultType, results, onPrepareCvs, onPrepareCo
 
   if (resultType === "offers") {
     const offers = results as ApiOfferResult[];
-    const selectable = Boolean(onPrepareCvs || onPrepareCoverLetters);
+    const selectable = Boolean(onPrepareCvs || onPrepareCoverLetters || onApplyByMail);
     const offersWithId = offers.filter((o) => Boolean(o.id));
     const chosenOffers = () =>
       offers
@@ -201,6 +206,15 @@ export function ChatResultTable({ resultType, results, onPrepareCvs, onPrepareCo
                 onClick={() => onPrepareCoverLetters(chosenOffers())}
               >
                 Préparer {selected.size > 1 ? `${selected.size} lettres` : "la lettre"}
+              </button>
+            ) : null}
+            {onApplyByMail ? (
+              <button
+                type="button"
+                className={styles.bulkButton}
+                onClick={() => onApplyByMail(chosenOffers())}
+              >
+                M'envoyer par mail
               </button>
             ) : null}
           </div>

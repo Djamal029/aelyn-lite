@@ -22,6 +22,7 @@ interface ChatHistoryProps {
    * facile sur plusieurs offres sélectionnées dans un tableau affiché. */
   onPrepareCvs?: (offers: { id: string; title: string }[]) => void;
   onPrepareCoverLetters?: (offers: { id: string; title: string }[]) => void;
+  onApplyByMail?: (offers: { id: string; title: string }[]) => void;
   /** Présent seulement s'il reste potentiellement de l'historique plus
    * ancien à charger (cf. Assistant.tsx) : `GET /chat/history` ne
    * renvoyait jusqu'ici que les 50 derniers tours sans aucun moyen d'en
@@ -39,6 +40,7 @@ export function ChatHistory({
   followLatest = true,
   onPrepareCvs,
   onPrepareCoverLetters,
+  onApplyByMail,
   onLoadOlder,
   loadingOlder = false,
 }: ChatHistoryProps) {
@@ -119,7 +121,13 @@ export function ChatHistory({
             <div key={label}>
               <div className={styles.daySeparator}>{label}</div>
               {msgs.map((m) => (
-                <ChatMessage key={m.id} message={m} onPrepareCvs={onPrepareCvs} onPrepareCoverLetters={onPrepareCoverLetters} />
+                <ChatMessage
+                  key={m.id}
+                  message={m}
+                  onPrepareCvs={onPrepareCvs}
+                  onPrepareCoverLetters={onPrepareCoverLetters}
+                  onApplyByMail={onApplyByMail}
+                />
               ))}
             </div>
           ))

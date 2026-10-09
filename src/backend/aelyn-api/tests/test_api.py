@@ -570,3 +570,58 @@ class TestCoverLetterRoute:
             app.dependency_overrides.clear()
 
         assert response.status_code == 404
+
+
+class TestApplyByMail:
+    def test_apply_by_mail_sends_cv_and_cover_letter_as_pdf_attachments(self, monkeypatch) -> None:
+        from aelyn_api.deps import get_application_writer, get_offers_agent
+        from aelyn_career.models import CVContent
+
+        offer = {
+            "id": "mail-offer-1",
+            "intitule": "Data Scientist",
+            "entreprise": {"nom": "ACME"},
+            "description": "Analyse de données.",
+        }
+        writer = MagicMock()
+        writer.draft_cv.return_value = CVContent(
+            profil="Profil", experiences=[], projets=[], competences={},
+            formation=[], certifications=[], langues=[], centres_interet=[],
+        )
+        writer.draft_cover_letter.return_value = "Madame, Monsieur,\n\nCandidature..."
+        writer.contact_header.return_value = "Djamal TOE"
+
+        sent = {}
+
+        def fake_send(*, to, subject, body, attachments):
+            sent["to"] = to
+            sent["subject"] = subject
+            sent["attachment_names"] = [a[0] for a in attachments]
+
+        monkeypatch.setattr("aelyn_api.routers.career.send_mail_with_attachments", fake_send)
+        app.dependency_overrides[get_offers_agent] = lambda: MagicMock()
+        app.dependency_overrides[get_application_writer] = lambda: writer
+        try:
+            with patch("aelyn_api.routers.career.find_best_matches", return_value=[offer]):
+                client.get("/career")  # alimente le cache process (cache_offers)
+
+            response = client.post("/career/mail-offer-1/apply-by-mail")
+        finally:
+            app.dependency_overrides.clear()
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body["offer_title"] == "Data Scientist"
+        assert "@" in sent["to"]
+        assert sent["attachment_names"] == ["CV.pdf", "Lettre_de_motivation.pdf"]
+
+    def test_apply_by_mail_for_unknown_offer_is_404(self) -> None:
+        from aelyn_api.deps import get_application_writer
+
+        app.dependency_overrides[get_application_writer] = lambda: MagicMock()
+        try:
+            response = client.post("/career/unknown-offer/apply-by-mail")
+        finally:
+            app.dependency_overrides.clear()
+
+        assert response.status_code == 404

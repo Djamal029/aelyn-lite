@@ -5,7 +5,7 @@ import { CommandBar } from "../components/commandbar/CommandBar";
 import { VoicePanel } from "../components/voice/VoicePanel";
 import type { InterpretedCommand } from "../lib/commandInterpreter";
 import type { ChatMessage } from "../types";
-import { getCareerCoverLetter, getCareerCv, getChatHistory, type ApiChatEntry } from "../lib/api";
+import { applyCareerByMail, getCareerCoverLetter, getCareerCv, getChatHistory, type ApiChatEntry } from "../lib/api";
 import { isBackendLive } from "../lib/backendStatus";
 import { useChatMessages } from "../lib/chatStore";
 import { formatCvAsText } from "../lib/cvFormat";
@@ -308,6 +308,57 @@ export function Assistant() {
     })();
   };
 
+  // "M'envoyer par mail" (ChatResultTable) : génère le CV + la lettre en
+  // PDF et les envoie par mail à l'utilisateur lui-même (POST
+  // /career/{id}/apply-by-mail), jamais à l'employeur - aucune offre, quelle
+  // que soit la source, ne fournit d'email de contact direct (confirmé en
+  // explorant source_adapters.py), seulement une URL de candidature.
+  const handleApplyByMail = (offers: { id: string; title: string }[]) => {
+    if (offers.length === 0) return;
+    const token = `mail-${nextId++}`;
+    const now = new Date().toISOString();
+    const userMsg: ChatMessage = {
+      id: `local-${token}-user`,
+      role: "user",
+      timestamp: now,
+      text:
+        offers.length > 1
+          ? `Envoie-moi le CV et la lettre par mail pour : ${offers.map((o) => o.title).join(", ")}`
+          : `Envoie-moi le CV et la lettre par mail pour ${offers[0].title}`,
+      via: "text",
+    };
+    const pendingMsg: ChatMessage = {
+      id: `local-${token}-aelyn`,
+      role: "aelyn",
+      timestamp: now,
+      text: "",
+      via: "text",
+      status: "executing",
+    };
+    setMessages((prev) => [...prev, userMsg, pendingMsg]);
+
+    (async () => {
+      const settled = await Promise.allSettled(offers.map((o) => applyCareerByMail(o.id)));
+      let anyOk = false;
+      const parts = settled.map((result, i) => {
+        const offer = offers[i];
+        if (result.status === "fulfilled") {
+          anyOk = true;
+          return `${offer.title} : envoyé à ${result.value.sent_to}.`;
+        }
+        const message = result.reason instanceof Error ? result.reason.message : "erreur inconnue";
+        return `${offer.title} : échec (${message}).`;
+      });
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === `local-${token}-aelyn`
+            ? { ...m, text: parts.join("\n"), status: anyOk ? "done" : "error" }
+            : m
+        )
+      );
+    })();
+  };
+
   // While a voice exchange is active, the orb takes over this whole page
   // (ChatGPT-style voice mode: the text thread isn't what you're looking
   // at while talking) instead of VoicePanel sitting inline above it.
@@ -361,6 +412,7 @@ export function Assistant() {
           messages={messages}
           onPrepareCvs={handlePrepareCvs}
           onPrepareCoverLetters={handlePrepareCoverLetters}
+          onApplyByMail={handleApplyByMail}
           onLoadOlder={hasMoreHistory ? loadOlderHistory : undefined}
           loadingOlder={loadingOlder}
         />

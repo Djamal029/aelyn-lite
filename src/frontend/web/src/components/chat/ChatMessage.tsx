@@ -29,9 +29,10 @@ interface ChatMessageProps {
   message: ChatMessageT;
   onPrepareCvs?: (offers: { id: string; title: string }[]) => void;
   onPrepareCoverLetters?: (offers: { id: string; title: string }[]) => void;
+  onApplyByMail?: (offers: { id: string; title: string }[]) => void;
 }
 
-export function ChatMessage({ message, onPrepareCvs, onPrepareCoverLetters }: ChatMessageProps) {
+export function ChatMessage({ message, onPrepareCvs, onPrepareCoverLetters, onApplyByMail }: ChatMessageProps) {
   const isAelyn = message.role === "aelyn";
   const hasTable = Boolean(message.resultType && message.results && message.results.length > 0);
   // When a real table is rendered below, `text` (whether the backend's
@@ -68,6 +69,7 @@ export function ChatMessage({ message, onPrepareCvs, onPrepareCoverLetters }: Ch
             results={message.results!}
             onPrepareCvs={message.resultType === "offers" ? onPrepareCvs : undefined}
             onPrepareCoverLetters={message.resultType === "offers" ? onPrepareCoverLetters : undefined}
+            onApplyByMail={message.resultType === "offers" ? onApplyByMail : undefined}
           />
         ) : null}
 

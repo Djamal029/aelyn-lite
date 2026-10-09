@@ -10,6 +10,7 @@ dependencies = [
     "rank-bm25>=0.2",
     "requests>=2.31",
     "torch>=2.9",
+    "reportlab>=4.0",
 ]
 
 [dependency-groups]

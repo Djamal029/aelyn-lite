@@ -285,6 +285,15 @@ export function getCareerCoverLetter(offerId: string): Promise<{ text: string }>
   return request(`/career/${offerId}/lm`, { method: "POST", timeoutMs: 150_000 });
 }
 
+export interface ApplyByMailResult {
+  sent_to: string;
+  offer_title: string;
+}
+
+export function applyCareerByMail(offerId: string): Promise<ApplyByMailResult> {
+  return request(`/career/${offerId}/apply-by-mail`, { method: "POST", timeoutMs: 150_000 });
+}
+
 // ---- Media (TV) -------------------------------------------------------
 
 export type MediaAction =

@@ -120,3 +120,25 @@ def send_reply(*, to: str, subject: str, body: str, in_reply_to: str | None = No
         server.starttls()
         server.login(settings.email_user, settings.email_pass)
         server.send_message(msg)
+
+
+def send_mail_with_attachments(
+    *, to: str, subject: str, body: str, attachments: list[tuple[str, bytes, str]]
+) -> None:
+    """Envoie un nouveau mail (pas une réponse à un fil existant, donc pas
+    de `In-Reply-To`/préfixe `Re:` comme `send_reply`) avec des pièces
+    jointes. `attachments` : liste de `(nom_fichier, contenu, sous_type)`,
+    ex. `("CV.pdf", pdf_bytes, "pdf")` ; `maintype` toujours `application`,
+    seul cas d'usage actuel (CV/LM en PDF, cf. career.py)."""
+    msg = EmailMessage()
+    msg["From"] = settings.email_user
+    msg["To"] = to
+    msg["Subject"] = subject
+    msg.set_content(body)
+    for filename, content, subtype in attachments:
+        msg.add_attachment(content, maintype="application", subtype=subtype, filename=filename)
+
+    with smtplib.SMTP(settings.smtp_server, settings.smtp_port) as server:
+        server.starttls()
+        server.login(settings.email_user, settings.email_pass)
+        server.send_message(msg)
