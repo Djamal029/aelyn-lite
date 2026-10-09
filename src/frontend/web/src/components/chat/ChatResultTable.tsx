@@ -189,10 +189,7 @@ export function ChatResultTable({ resultType, results, onPrepareCvs, onPrepareCo
               <button
                 type="button"
                 className={styles.bulkButton}
-                onClick={() => {
-                  onPrepareCvs(chosenOffers());
-                  setSelected(new Set());
-                }}
+                onClick={() => onPrepareCvs(chosenOffers())}
               >
                 Préparer {selected.size > 1 ? `${selected.size} CV` : "le CV"}
               </button>
@@ -201,10 +198,7 @@ export function ChatResultTable({ resultType, results, onPrepareCvs, onPrepareCo
               <button
                 type="button"
                 className={styles.bulkButton}
-                onClick={() => {
-                  onPrepareCoverLetters(chosenOffers());
-                  setSelected(new Set());
-                }}
+                onClick={() => onPrepareCoverLetters(chosenOffers())}
               >
                 Préparer {selected.size > 1 ? `${selected.size} lettres` : "la lettre"}
               </button>
