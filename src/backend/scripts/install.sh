@@ -78,6 +78,8 @@ t() {
       err_npm) echo "npm not found. Install Node.js: https://nodejs.org" ;;
       warn_espeak) echo "espeak-ng not found (Kokoro voice unavailable without it)." ;;
       warn_espeak_win) echo "Windows: winget install eSpeak-NG.eSpeak-NG — or re-run with --no-voice." ;;
+      warn_portaudio_linux) echo "PortAudio dev headers not found: PyAudio (voice) is likely to fail to compile. Install it first, e.g. 'sudo apt install portaudio19-dev python3-dev' on Debian/Ubuntu (or your distro's equivalent), then re-run. If you skip this, the install will still complete, just without voice (see step 5/8)." ;;
+      warn_no_compiler_linux) echo "No C compiler found (gcc/cc): PyAudio (voice) cannot be built. Install one first, e.g. 'sudo apt install build-essential' on Debian/Ubuntu (or your distro's equivalent). If you skip this, the install will still complete, just without voice." ;;
       gpu_found) echo "NVIDIA GPU detected:" ;;
       gpu_none) echo "No NVIDIA GPU detected -> CPU torch (slower on embeddings/transcription, but works everywhere)" ;;
       gpu_other_vendor) echo "Note: a non-NVIDIA GPU (AMD/Intel) was detected, but there is no reliable Windows PyTorch build for it yet (ROCm is Linux-only, Intel XPU is experimental) -> falling back to CPU." ;;
@@ -156,6 +158,8 @@ t() {
       err_npm) echo "npm est introuvable. Installe Node.js : https://nodejs.org" ;;
       warn_espeak) echo "espeak-ng introuvable (voix Kokoro indisponible sans lui)." ;;
       warn_espeak_win) echo "Windows : winget install eSpeak-NG.eSpeak-NG — sinon relance avec --no-voice." ;;
+      warn_portaudio_linux) echo "En-têtes de dev PortAudio introuvables : PyAudio (voix) risque d'échouer à compiler. Installe-les d'abord, ex. 'sudo apt install portaudio19-dev python3-dev' sur Debian/Ubuntu (ou l'équivalent de ta distribution), puis relance. Si tu ignores ce message, l'installation ira quand même au bout, juste sans la voix (voir étape 5/8)." ;;
+      warn_no_compiler_linux) echo "Aucun compilateur C trouvé (gcc/cc) : PyAudio (voix) ne pourra pas compiler. Installe-en un d'abord, ex. 'sudo apt install build-essential' sur Debian/Ubuntu (ou l'équivalent de ta distribution). Si tu ignores ce message, l'installation ira quand même au bout, juste sans la voix." ;;
       gpu_found) echo "GPU NVIDIA détecté :" ;;
       gpu_none) echo "Aucun GPU NVIDIA détecté -> torch CPU (plus lent sur les embeddings/la transcription, mais fonctionne partout)" ;;
       gpu_other_vendor) echo "Remarque : une carte graphique non-NVIDIA (AMD/Intel) a été détectée, mais il n'existe pas de build PyTorch Windows fiable pour elle (ROCm Linux uniquement, Intel XPU expérimental) -> repli sur CPU." ;;
@@ -254,6 +258,29 @@ echo "  npm : $(npm --version)"
 if $WITH_VOICE && ! command -v espeak-ng >/dev/null 2>&1; then
   warn "$(t warn_espeak)"
   warn "$(t warn_espeak_win)"
+fi
+
+# PyAudio (extra voice) a besoin des en-têtes PortAudio ET d'un
+# compilateur C pour compiler depuis les sources sur Linux (pas de wheel
+# prébuilt officiel) : vérifié AVANT `uv sync --extra voice` (pas
+# seulement après coup via le repli de l'étape 5) pour que l'échec, s'il
+# a lieu, soit déjà expliqué clairement plutôt qu'une sortie uv brute et
+# cryptique. N'empêche jamais l'installation de continuer : seulement un
+# avertissement, le repli sans voix (étape 5) reste le filet de sécurité
+# réel si l'utilisateur ignore ce message.
+if $WITH_VOICE && [ "$(uname -s 2>/dev/null)" = "Linux" ]; then
+  PORTAUDIO_OK=false
+  if command -v pkg-config >/dev/null 2>&1 && pkg-config --exists portaudio-2.0 2>/dev/null; then
+    PORTAUDIO_OK=true
+  elif [ -f /usr/include/portaudio.h ] || [ -f /usr/local/include/portaudio.h ]; then
+    PORTAUDIO_OK=true
+  fi
+  if ! $PORTAUDIO_OK; then
+    warn "$(t warn_portaudio_linux)"
+  fi
+  if ! command -v cc >/dev/null 2>&1 && ! command -v gcc >/dev/null 2>&1; then
+    warn "$(t warn_no_compiler_linux)"
+  fi
 fi
 
 # ---------------------------------------------------------------- 2. GPU
