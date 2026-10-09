@@ -72,7 +72,8 @@ t() {
       step_ollama) echo "6/8 Downloading Ollama models" ;;
       step_frontend) echo "7/8 Installing the frontend" ;;
       step_done) echo "8/8 Done" ;;
-      err_uv) echo "uv not found. Install it: https://docs.astral.sh/uv/getting-started/installation/" ;;
+      err_uv) echo "uv still not found after attempting to install it automatically (no internet access, or an unsupported setup). Install it by hand: https://docs.astral.sh/uv/getting-started/installation/, then re-run this script." ;;
+      info_installing_uv) echo "uv not found, installing it automatically..." ;;
       err_ollama_missing) echo "Ollama not found. Install it: https://ollama.com/download" ;;
       err_ollama_down) echo "Ollama is installed but not responding. Run 'ollama serve' in another terminal, then re-run this script." ;;
       err_npm) echo "npm not found. Install Node.js: https://nodejs.org" ;;
@@ -152,7 +153,8 @@ t() {
       step_ollama) echo "6/8 Téléchargement des modèles Ollama" ;;
       step_frontend) echo "7/8 Installation du frontend" ;;
       step_done) echo "8/8 Terminé" ;;
-      err_uv) echo "uv est introuvable. Installe-le : https://docs.astral.sh/uv/getting-started/installation/" ;;
+      err_uv) echo "uv reste introuvable même après une tentative d'installation automatique (pas d'accès internet, ou configuration non prise en charge). Installe-le à la main : https://docs.astral.sh/uv/getting-started/installation/, puis relance ce script." ;;
+      info_installing_uv) echo "uv introuvable, installation automatique en cours..." ;;
       err_ollama_missing) echo "Ollama est introuvable. Installe-le : https://ollama.com/download" ;;
       err_ollama_down) echo "Ollama est installé mais ne répond pas. Lance 'ollama serve' dans un autre terminal puis relance ce script." ;;
       err_npm) echo "npm est introuvable. Installe Node.js : https://nodejs.org" ;;
@@ -234,8 +236,18 @@ err()  { printf '\033[1;31mx %s\033[0m\n' "$1" >&2; }
 say "$(t step_prereq)"
 
 if ! command -v uv >/dev/null 2>&1; then
-  err "$(t err_uv)"
-  exit 1
+  warn "$(t info_installing_uv)"
+  curl -LsSf https://astral.sh/uv/install.sh | sh || true
+  # L'installateur officiel place uv dans ~/.local/bin (ou ~/.cargo/bin
+  # sur d'anciennes versions) et met à jour .bashrc/.profile pour les
+  # PROCHAINS terminaux, jamais repris par CE process déjà démarré :
+  # complète le PATH de cette exécution plutôt que de forcer l'utilisateur
+  # à rouvrir un terminal juste pour continuer l'installation en cours.
+  export PATH="$HOME/.local/bin:$HOME/.cargo/bin:$PATH"
+  if ! command -v uv >/dev/null 2>&1; then
+    err "$(t err_uv)"
+    exit 1
+  fi
 fi
 echo "  uv : $(uv --version)"
 

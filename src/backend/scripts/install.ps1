@@ -40,7 +40,8 @@ $Messages = @{
         step_ollama = "6/8 Telechargement des modeles Ollama"
         step_frontend = "7/8 Installation du frontend"
         step_done = "8/8 Termine"
-        err_uv = "uv est introuvable. Installe-le : https://docs.astral.sh/uv/getting-started/installation/"
+        err_uv = "uv reste introuvable meme apres une tentative d'installation automatique (pas d'acces internet, ou configuration non prise en charge). Installe-le a la main : https://docs.astral.sh/uv/getting-started/installation/, puis relance ce script."
+        info_installing_uv = "uv introuvable, installation automatique en cours..."
         err_ollama_missing = "Ollama est introuvable. Installe-le : https://ollama.com/download"
         err_ollama_down = "Ollama est installe mais ne repond pas. Lance 'ollama serve' dans un autre terminal puis relance ce script."
         err_npm = "npm est introuvable. Installe Node.js : https://nodejs.org"
@@ -116,7 +117,8 @@ $Messages = @{
         step_ollama = "6/8 Downloading Ollama models"
         step_frontend = "7/8 Installing the frontend"
         step_done = "8/8 Done"
-        err_uv = "uv not found. Install it: https://docs.astral.sh/uv/getting-started/installation/"
+        err_uv = "uv still not found after attempting to install it automatically (no internet access, or an unsupported setup). Install it by hand: https://docs.astral.sh/uv/getting-started/installation/, then re-run this script."
+        info_installing_uv = "uv not found, installing it automatically..."
         err_ollama_missing = "Ollama not found. Install it: https://ollama.com/download"
         err_ollama_down = "Ollama is installed but not responding. Run 'ollama serve' in another terminal, then re-run this script."
         err_npm = "npm not found. Install Node.js: https://nodejs.org"
@@ -196,7 +198,19 @@ function Fail($msg) { Write-Host "x $msg" -ForegroundColor Red; exit 1 }
 Say (T "step_prereq")
 
 if (-not (Get-Command uv -ErrorAction SilentlyContinue)) {
-    Fail (T "err_uv")
+    Warn (T "info_installing_uv")
+    try {
+        Invoke-RestMethod https://astral.sh/uv/install.ps1 | Invoke-Expression
+    } catch {}
+    # L'installateur officiel place uv dans %USERPROFILE%\.local\bin et
+    # met a jour le PATH utilisateur de facon PERSISTANTE (registre),
+    # jamais repris par CETTE session PowerShell deja demarree : complete
+    # le PATH de cette execution plutot que de forcer un redemarrage de
+    # terminal pour continuer l'installation en cours.
+    $env:PATH = "$env:USERPROFILE\.local\bin;$env:PATH"
+    if (-not (Get-Command uv -ErrorAction SilentlyContinue)) {
+        Fail (T "err_uv")
+    }
 }
 Write-Host "  uv : $(uv --version)"
 
