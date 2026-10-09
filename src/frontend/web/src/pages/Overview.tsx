@@ -88,7 +88,7 @@ export function Overview() {
           className={styles.systemPanel}
           meta={
             <span>
-              {core.label} · {core.uptime} · {live ? "mesures réelles" : "mode démo — chiffres fictifs"}
+              {core.label} · {core.uptime} · {live ? "mesures réelles" : "mode démo : chiffres fictifs"}
             </span>
           }
         >

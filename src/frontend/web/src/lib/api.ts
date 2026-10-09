@@ -271,7 +271,7 @@ export function getCareerOffers(params: { motsCles?: string; contractType?: Cont
   // Timeout long (pas le défaut de 6s) : `GET /career` lance désormais le
   // vrai scoring BM25/cosinus contre le profil (structuration LLM par
   // offre non encore vue), jusqu'à ~2-3 min sur une recherche jamais vue
-  // avant mise en cache (observé en direct) — le défaut, pensé pour un
+  // avant mise en cache (observé en direct) : le défaut, pensé pour un
   // simple fetch France Travail avant ce changement, coupait la requête
   // bien avant la fin et affichait une fausse erreur de timeout.
   return request(`/career${qs ? `?${qs}` : ""}`, { timeoutMs: 180_000 });

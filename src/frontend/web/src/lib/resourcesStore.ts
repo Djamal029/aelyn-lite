@@ -20,7 +20,7 @@ export interface ResourcesState {
  * simple `useState` local (comportement d'origine, bug réel signalé en
  * usage), chaque retour sur la page repartait de `resources=null` et
  * affichait "Aucune mesure disponible" le temps d'un nouvel aller-retour
- * réseau — alors que le endpoint répond en fait très vite et que les
+ * réseau, alors que le endpoint répond en fait très vite et que les
  * dernières valeurs connues étaient déjà en mémoire une seconde plus
  * tôt. En gardant l'état ici, une revisite réaffiche IMMÉDIATEMENT le
  * dernier relevé connu pendant que le prochain se charge en arrière-plan,

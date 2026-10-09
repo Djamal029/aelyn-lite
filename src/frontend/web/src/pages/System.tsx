@@ -62,7 +62,7 @@ export function System() {
               {node.state === "offline"
                 ? "Non déployé"
                 : node.id === "core" && !live
-                  ? "Mode démo — chiffres fictifs"
+                  ? "Mode démo : chiffres fictifs"
                   : `En service depuis ${node.uptime}`}
             </span>
           }

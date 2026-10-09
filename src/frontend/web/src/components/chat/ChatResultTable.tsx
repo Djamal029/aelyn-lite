@@ -243,7 +243,7 @@ export function ChatResultTable({ resultType, results, onPrepareCvs, onPrepareCo
                  * texte (une recherche par expéditeur/sujet ne peut pas se
                  * résoudre côté client, l'historique des propositions
                  * n'existe que côté serveur). */}
-                {hasActions ? <td className={styles.actionId}>{m.action_id ?? "—"}</td> : null}
+                {hasActions ? <td className={styles.actionId}>{m.action_id ?? "N/A"}</td> : null}
                 <td>{m.sender || m.sender_email}</td>
                 <td>{m.subject}</td>
                 <td className={styles.date}>{formatMailDate(m.date)}</td>
