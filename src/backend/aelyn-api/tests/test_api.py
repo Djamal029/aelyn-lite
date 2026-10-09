@@ -361,6 +361,51 @@ class TestSettingsPasskeyFlow:
 
         assert response.status_code == 401
 
+    def test_generic_patch_persists_proactive_search_settings(
+        self, monkeypatch
+    ) -> None:
+        monkeypatch.setattr(settings, "settings_passkey", "correct-horse")
+        monkeypatch.setattr(settings, "proactive_search_enabled", False)
+        monkeypatch.setattr(settings, "proactive_search_interval_minutes", 180)
+        monkeypatch.setattr(
+            "aelyn_api.routers.settings.set_env_value", lambda key, value: None
+        )
+
+        auth = client.post("/settings/auth", json={"passkey": "correct-horse"})
+        token = auth.json()["token"]
+
+        response = client.patch(
+            "/settings",
+            json={
+                "proactive_search_enabled": True,
+                "proactive_search_interval_minutes": 60,
+            },
+            headers={"Authorization": f"Bearer {token}"},
+        )
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body["proactive_search_enabled"] is True
+        assert body["proactive_search_interval_minutes"] == 60
+        assert settings.proactive_search_enabled is True
+        assert settings.proactive_search_interval_minutes == 60
+
+    def test_generic_patch_rejects_an_interval_outside_bounds(
+        self, monkeypatch
+    ) -> None:
+        monkeypatch.setattr(settings, "settings_passkey", "correct-horse")
+
+        auth = client.post("/settings/auth", json={"passkey": "correct-horse"})
+        token = auth.json()["token"]
+
+        response = client.patch(
+            "/settings",
+            json={"proactive_search_interval_minutes": 5},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+
+        assert response.status_code == 422
+
 
 class TestActivity:
     """GET /activity : vide pour un journal/historique sans contenu

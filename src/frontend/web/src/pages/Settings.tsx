@@ -77,6 +77,8 @@ interface EditableDraft {
   face_match_threshold: string;
   keywords: string;
   department: string;
+  proactive_search_enabled: boolean;
+  proactive_search_interval_minutes: string;
 }
 
 function draftFromSettings(s: ApiSettings): EditableDraft {
@@ -90,6 +92,8 @@ function draftFromSettings(s: ApiSettings): EditableDraft {
     face_match_threshold: String(s.face_match_threshold),
     keywords: s.keywords.join(", "),
     department: s.department.join(", "),
+    proactive_search_enabled: s.proactive_search_enabled,
+    proactive_search_interval_minutes: String(s.proactive_search_interval_minutes),
   };
 }
 
@@ -270,6 +274,8 @@ export function Settings() {
       face_match_threshold: Number(draft.face_match_threshold),
       keywords: draft.keywords.split(",").map((s) => s.trim()).filter(Boolean),
       department: draft.department.split(",").map((s) => s.trim()).filter(Boolean),
+      proactive_search_enabled: draft.proactive_search_enabled,
+      proactive_search_interval_minutes: Number(draft.proactive_search_interval_minutes),
     };
     try {
       const updated = await patchSettings(body, token);
@@ -594,6 +600,43 @@ export function Settings() {
                 />
                 <span className={styles.fieldNote}>codes département, séparés par des virgules</span>
                 {fieldErrors.department ? <span className={styles.fieldError}>{fieldErrors.department}</span> : null}
+              </label>
+
+              <label className={styles.field}>
+                <span className={styles.fieldLabel}>Recherche proactive</span>
+                <span className={styles.toggle}>
+                  <input
+                    type="checkbox"
+                    disabled={!unlocked || fieldsSaving}
+                    checked={draft.proactive_search_enabled}
+                    onChange={(e) => setDraft({ ...draft, proactive_search_enabled: e.target.checked })}
+                  />
+                  {draft.proactive_search_enabled ? "activée" : "désactivée"}
+                </span>
+                <span className={styles.fieldNote}>cherche de nouvelles offres en arrière-plan</span>
+                {fieldErrors.proactive_search_enabled ? (
+                  <span className={styles.fieldError}>{fieldErrors.proactive_search_enabled}</span>
+                ) : null}
+              </label>
+
+              <label className={styles.field}>
+                <span className={styles.fieldLabel}>Intervalle de la recherche proactive</span>
+                <input
+                  type="number"
+                  min={15}
+                  max={1440}
+                  step={15}
+                  className={styles.fieldInput}
+                  disabled={!unlocked || fieldsSaving || !draft.proactive_search_enabled}
+                  value={draft.proactive_search_interval_minutes}
+                  onChange={(e) =>
+                    setDraft({ ...draft, proactive_search_interval_minutes: e.target.value })
+                  }
+                />
+                <span className={styles.fieldNote}>en minutes (15 à 1440)</span>
+                {fieldErrors.proactive_search_interval_minutes ? (
+                  <span className={styles.fieldError}>{fieldErrors.proactive_search_interval_minutes}</span>
+                ) : null}
               </label>
             </div>
 

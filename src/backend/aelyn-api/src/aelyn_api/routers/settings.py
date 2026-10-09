@@ -63,6 +63,8 @@ class SettingsOut(BaseModel):
     face_match_threshold: float
     keywords: list[str]
     department: list[str]
+    proactive_search_enabled: bool
+    proactive_search_interval_minutes: int
 
 
 class PasskeyIn(BaseModel):
@@ -100,6 +102,8 @@ def _settings_out() -> SettingsOut:
         face_match_threshold=settings.face_match_threshold,
         keywords=_split_csv(settings.keywords),
         department=_split_csv(settings.department),
+        proactive_search_enabled=settings.proactive_search_enabled,
+        proactive_search_interval_minutes=settings.proactive_search_interval_minutes,
     )
 
 
@@ -151,6 +155,10 @@ class SettingsPatchIn(BaseModel):
     face_match_threshold: float | None = Field(default=None, ge=0.0, le=2.0)
     keywords: list[str] | None = None
     department: list[str] | None = None
+    proactive_search_enabled: bool | None = None
+    proactive_search_interval_minutes: int | None = Field(
+        default=None, ge=15, le=1440
+    )
     llm_model: str | None = None
     llm_model_heavy: str | None = None
     llm_model_career: str | None = None
@@ -183,6 +191,11 @@ _ENV_KEYS: dict[str, tuple[str, Callable[[object], str]]] = {
     "face_match_threshold": ("FACE_MATCH_THRESHOLD", str),
     "keywords": ("KEYWORDS", lambda v: ",".join(v)),
     "department": ("DEPARTMENT", lambda v: ",".join(v)),
+    "proactive_search_enabled": (
+        "PROACTIVE_SEARCH_ENABLED",
+        lambda v: "true" if v else "false",
+    ),
+    "proactive_search_interval_minutes": ("PROACTIVE_SEARCH_INTERVAL_MINUTES", str),
     "llm_model": ("LLM_MODEL", str),
     "llm_model_heavy": ("LLM_MODEL_HEAVY", str),
     "llm_model_career": ("LLM_MODEL_CAREER", str),

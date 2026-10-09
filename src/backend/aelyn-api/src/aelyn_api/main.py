@@ -16,10 +16,16 @@ routeur par domaine, tous montés ici.
 
 from __future__ import annotations
 
+import asyncio
+import contextlib
 import sys
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+
+from aelyn_career.proactive_search import proactive_search_loop
 
 from aelyn_api.routers import activity, career, chat, email, health, media, security, system, tts
 from aelyn_api.routers import settings as settings_router
@@ -38,6 +44,23 @@ for _stream in (sys.stdout, sys.stderr):
     except (AttributeError, ValueError):
         pass
 
+@asynccontextmanager
+async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+    """Démarre la recherche proactive (`aelyn_career.proactive_search`)
+    en tâche de fond pour toute la durée de vie du process API. La
+    boucle elle-même vérifie `settings.proactive_search_enabled` à
+    chaque tick (désactivée par défaut) : la démarrer ici sans condition
+    ne coûte rien tant que ce réglage reste à `False`.
+
+    `TestClient(app)` utilisé SANS `with` (cf. `aelyn-api/tests/test_api.py`)
+    ne déclenche jamais ce lifespan : aucun impact sur les tests."""
+    task = asyncio.create_task(proactive_search_loop())
+    yield
+    task.cancel()
+    with contextlib.suppress(asyncio.CancelledError):
+        await task
+
+
 app = FastAPI(
     title="AELYN API",
     description=(
@@ -45,6 +68,7 @@ app = FastAPI(
         "carrière, média (TV) et caméras locales."
     ),
     version="0.1.0",
+    lifespan=lifespan,
 )
 
 # CORS ouvert en développement (frontend web sur un port différent du

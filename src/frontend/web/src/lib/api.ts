@@ -436,6 +436,8 @@ export interface ApiSettings {
   face_match_threshold: number;
   keywords: string[];
   department: string[];
+  proactive_search_enabled: boolean;
+  proactive_search_interval_minutes: number;
 }
 
 export function getSettings(): Promise<ApiSettings> {
@@ -467,6 +469,8 @@ export interface SettingsPatch {
   face_match_threshold?: number;
   keywords?: string[];
   department?: string[];
+  proactive_search_enabled?: boolean;
+  proactive_search_interval_minutes?: number;
   llm_model?: string;
   llm_model_heavy?: string;
   llm_model_career?: string;

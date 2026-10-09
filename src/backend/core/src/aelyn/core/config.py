@@ -187,11 +187,25 @@ class Settings(BaseModel):
     # profil). Rapide, déterministe, et suffisant vu le faible nombre
     # d'expériences/projets/certifications d'un profil réel.
     application_selection_mode: str = "keywords"
+    # Recherche proactive (aelyn_api.main, lifespan) : cherche de nouvelles
+    # offres en arrière-plan, sans qu'on ait besoin de demander, et les
+    # journalise (visibles dans le flux Activité existant). Désactivée par
+    # défaut : une recherche automatique qui tourne sans que l'utilisateur
+    # l'ait explicitement activée serait surprenante au premier lancement.
+    proactive_search_enabled: bool = False
+    # 3h par défaut : assez rare pour ne pas spammer le flux Activité ni
+    # saturer l'API France Travail, assez fréquent pour rester utile.
+    proactive_search_interval_minutes: int = 180
 
     @property
     def journal_path(self) -> Path:
         self.data_dir.mkdir(parents=True, exist_ok=True)
         return self.data_dir / "journal.db"
+
+    @property
+    def seen_offers_path(self) -> Path:
+        self.data_dir.mkdir(parents=True, exist_ok=True)
+        return self.data_dir / "seen_offers.db"
 
     @property
     def chat_history_path(self) -> Path:
@@ -270,6 +284,10 @@ def get_settings() -> Settings:
         keywords=os.getenv("KEYWORDS", ""),
         department=os.getenv("DEPARTMENT", ""),
         application_selection_mode=os.getenv("APPLICATION_SELECTION_MODE", "keywords").strip().lower(),
+        proactive_search_enabled=_env_bool("PROACTIVE_SEARCH_ENABLED", False),
+        proactive_search_interval_minutes=_env_int(
+            "PROACTIVE_SEARCH_INTERVAL_MINUTES", 180
+        ),
     )
 
 
