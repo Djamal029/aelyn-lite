@@ -16,6 +16,7 @@ from __future__ import annotations
 from aelyn.core.config import settings
 from aelyn.core.llm import LLMError
 from aelyn_career.application_writer import ApplicationWriter, offer_text
+from aelyn_career.applications import ApplicationsStore
 from aelyn_career.pdf_export import cover_letter_to_pdf_bytes, cv_to_pdf_bytes
 from aelyn_email.client import send_mail_with_attachments
 
@@ -26,9 +27,19 @@ class ApplyByMailError(RuntimeError):
     côté agent conversationnel) - jamais une exception brute."""
 
 
-def send_application_by_mail(writer: ApplicationWriter, offre: dict) -> str:
+def send_application_by_mail(
+    writer: ApplicationWriter,
+    offre: dict,
+    *,
+    applications: ApplicationsStore | None = None,
+) -> str:
     """Génère, met en forme et envoie CV + lettre pour `offre`. Renvoie
-    l'adresse de destination en cas de succès."""
+    l'adresse de destination en cas de succès.
+
+    `applications` : injectable pour les tests (sinon construit depuis
+    `settings.applications_path`, la vraie base locale de l'utilisateur)
+    - même principe que `seen_offers`/`journal` dans
+    `proactive_search.run_proactive_search_once`."""
     dest = settings.user_contact_email or settings.email_user
     if not dest:
         raise ApplyByMailError(
@@ -70,5 +81,20 @@ def send_application_by_mail(writer: ApplicationWriter, offre: dict) -> str:
         )
     except Exception as exc:
         raise ApplyByMailError(f"Envoi du mail impossible : {exc}") from exc
+
+    # Suivi de candidature (fiche "où en sont mes candidatures ?") : le
+    # Journal note déjà que l'envoi a eu lieu, mais jamais sous une forme
+    # qui se met à jour (statut relance/entretien/refus...), cf.
+    # `applications.py`. Enregistré APRÈS l'envoi réussi seulement : une
+    # candidature "suivie" doit correspondre à un vrai mail parti, jamais
+    # à une tentative avortée (LLM en échec, etc.).
+    offer_id = str(offre.get("id") or "")
+    if offer_id:
+        entreprise = offre.get("entreprise")
+        company = (
+            entreprise.get("nom") if isinstance(entreprise, dict) else entreprise
+        ) or offre.get("company")
+        store = applications or ApplicationsStore(settings.applications_path)
+        store.record(offer_id=offer_id, title=titre, company=company)
 
     return dest

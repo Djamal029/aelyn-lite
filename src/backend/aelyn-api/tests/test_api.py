@@ -618,8 +618,15 @@ class TestCoverLetterRoute:
 
 
 class TestApplyByMail:
-    def test_apply_by_mail_sends_cv_and_cover_letter_as_pdf_attachments(self, monkeypatch) -> None:
-        from aelyn_api.deps import get_application_writer, get_offers_agent
+    def test_apply_by_mail_sends_cv_and_cover_letter_as_pdf_attachments(
+        self, monkeypatch, tmp_path
+    ) -> None:
+        from aelyn_api.deps import (
+            get_application_writer,
+            get_applications_store,
+            get_offers_agent,
+        )
+        from aelyn_career.applications import ApplicationsStore
         from aelyn_career.models import CVContent
 
         offer = {
@@ -655,8 +662,10 @@ class TestApplyByMail:
         monkeypatch.setattr(
             "aelyn_career.apply_by_mail.send_mail_with_attachments", fake_send
         )
+        applications_store = ApplicationsStore(tmp_path / "applications.db")
         app.dependency_overrides[get_offers_agent] = lambda: MagicMock()
         app.dependency_overrides[get_application_writer] = lambda: writer
+        app.dependency_overrides[get_applications_store] = lambda: applications_store
         try:
             with patch("aelyn_api.routers.career.find_best_matches", return_value=[offer]):
                 client.get("/career")  # alimente le cache process (cache_offers)
@@ -671,12 +680,104 @@ class TestApplyByMail:
         assert "@" in sent["to"]
         assert sent["attachment_names"] == ["CV.pdf", "Lettre_de_motivation.pdf"]
 
+        tracked = applications_store.get("mail-offer-1")
+        assert tracked is not None
+        assert tracked.title == "Data Scientist"
+        assert tracked.company == "ACME"
+
     def test_apply_by_mail_for_unknown_offer_is_404(self) -> None:
         from aelyn_api.deps import get_application_writer
 
         app.dependency_overrides[get_application_writer] = lambda: MagicMock()
         try:
             response = client.post("/career/unknown-offer/apply-by-mail")
+        finally:
+            app.dependency_overrides.clear()
+
+        assert response.status_code == 404
+
+
+class TestApplications:
+    def _store(self, tmp_path):
+        from aelyn_career.applications import ApplicationsStore
+
+        return ApplicationsStore(tmp_path / "applications.db")
+
+    def test_list_applications_returns_tracked_entries(self, tmp_path) -> None:
+        from aelyn_api.deps import get_applications_store
+
+        store = self._store(tmp_path)
+        store.record(offer_id="1", title="Data Scientist", company="EDF")
+        app.dependency_overrides[get_applications_store] = lambda: store
+        try:
+            response = client.get("/applications")
+        finally:
+            app.dependency_overrides.clear()
+
+        assert response.status_code == 200
+        body = response.json()
+        assert len(body) == 1
+        assert body[0]["offer_id"] == "1"
+        assert body[0]["status"] == "postule"
+        assert body[0]["status_label"] == "postulé"
+
+    def test_list_applications_filters_by_status(self, tmp_path) -> None:
+        from aelyn_api.deps import get_applications_store
+        from aelyn_career.applications import ApplicationStatus
+
+        store = self._store(tmp_path)
+        store.record(offer_id="1", title="Data Scientist")
+        store.record(offer_id="2", title="Data Engineer")
+        store.update_status("2", ApplicationStatus.ENTRETIEN)
+        app.dependency_overrides[get_applications_store] = lambda: store
+        try:
+            response = client.get("/applications", params={"status": "entretien"})
+        finally:
+            app.dependency_overrides.clear()
+
+        assert response.status_code == 200
+        body = response.json()
+        assert len(body) == 1
+        assert body[0]["offer_id"] == "2"
+
+    def test_list_applications_rejects_an_unknown_status(self, tmp_path) -> None:
+        from aelyn_api.deps import get_applications_store
+
+        store = self._store(tmp_path)
+        app.dependency_overrides[get_applications_store] = lambda: store
+        try:
+            response = client.get("/applications", params={"status": "bogus"})
+        finally:
+            app.dependency_overrides.clear()
+
+        assert response.status_code == 422
+
+    def test_patch_application_updates_status_and_appends_note(self, tmp_path) -> None:
+        from aelyn_api.deps import get_applications_store
+
+        store = self._store(tmp_path)
+        store.record(offer_id="1", title="Data Scientist", company="EDF")
+        app.dependency_overrides[get_applications_store] = lambda: store
+        try:
+            response = client.patch(
+                "/applications/1",
+                json={"status": "entretien", "note": "Entretien le 20/10."},
+            )
+        finally:
+            app.dependency_overrides.clear()
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body["status"] == "entretien"
+        assert "Entretien le 20/10." in body["notes"]
+
+    def test_patch_application_for_unknown_offer_is_404(self, tmp_path) -> None:
+        from aelyn_api.deps import get_applications_store
+
+        store = self._store(tmp_path)
+        app.dependency_overrides[get_applications_store] = lambda: store
+        try:
+            response = client.patch("/applications/unknown", json={"status": "refuse"})
         finally:
             app.dependency_overrides.clear()
 

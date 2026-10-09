@@ -50,6 +50,7 @@ from aelyn_career.application_writer import (
     offer_text,
 )
 from aelyn_career.apply_by_mail import ApplyByMailError, send_application_by_mail
+from aelyn_career.applications import ApplicationsStore, ApplicationStatus, status_label
 from aelyn_career.france_travail.offers import FTOffers
 from aelyn_email.agent import EmailAgent, run_command
 from aelyn_email.models import Mail
@@ -211,6 +212,36 @@ DESCRIBE_OFFER_RE = re.compile(r"\bd[ée]cri\w*\b|\bd[ée]taill\w*\b", re.IGNORE
 # interceptés AVANT `_try_draft` (qui capterait "rédige" en pensant à un
 # brouillon de mail) et avant le routage LLM (pas de commande dédiée dans
 # `Intent`, il improviserait vers `chercher_offres`).
+# Suivi des candidatures déjà envoyées ("où en sont mes candidatures ?",
+# "marque ma candidature chez EDF comme entretien") : interceptés AVANT
+# `_try_apply_by_mail`/`_try_prepare_cv`/`_try_prepare_lm` (qui matchent
+# aussi "candidature"), sinon "marque ma candidature..." partirait vers
+# un brouillon de lettre au lieu d'une mise à jour de statut.
+APPLICATIONS_QUERY_RE = re.compile(
+    r"\b(mes candidatures|suivi des candidatures|statut de mes candidatures|"
+    r"o[uù] en (sont|est) mes candidatures|liste (de )?mes candidatures)\b",
+    re.IGNORECASE,
+)
+UPDATE_APPLICATION_RE = re.compile(
+    r"\b(marque|passe)\b.*\bcandidatures?\b|\brelance\b.*\bcandidatures?\b",
+    re.IGNORECASE,
+)
+_APPLICATION_STATUS_KEYWORDS: dict[str, ApplicationStatus] = {
+    "entretien": ApplicationStatus.ENTRETIEN,
+    "refus": ApplicationStatus.REFUSE,
+    "accept": ApplicationStatus.ACCEPTE,
+    "relanc": ApplicationStatus.RELANCE,
+    "postul": ApplicationStatus.POSTULE,
+}
+_APPLICATION_QUERY_STOPWORDS = {
+    "marque", "passe", "mets", "met", "jour", "relance", "relancer",
+    "candidature", "candidatures", "comme", "en", "chez", "pour", "la",
+    "le", "les", "ma", "mon", "mes", "a", "au", "aux", "du", "de", "des",
+    "entretien", "refusee", "refusée", "refuse", "refusé", "acceptee",
+    "acceptée", "accepte", "accepté", "postulee", "postulée", "postule",
+    "postulé",
+}
+
 PREPARE_CV_RE = re.compile(r"\b(cv|curriculum)\b", re.IGNORECASE)
 PREPARE_LM_RE = re.compile(
     r"\blettre\w*\s+de\s+motivation\b|\bcandidature\b", re.IGNORECASE
@@ -426,6 +457,10 @@ class ConversationalAgent:
         # Rédaction CV/lettre de motivation : un seul writer, pour réutiliser
         # son ProfilManager/LLMClient au lieu d'en recréer un par candidature.
         self.application_writer = ApplicationWriter()
+        # Suivi des candidatures envoyées (cf. apply_by_mail.py, qui
+        # écrit dans la même base) : un seul store, même fichier SQLite
+        # pour toute la session.
+        self.applications_store = ApplicationsStore(settings.applications_path)
         # Créé au premier usage seulement (pas ici) : se connecter à la TV
         # ouvre un thread/event loop dédié et peut déclencher un appairage
         # interactif, inutile de payer ce coût pour une session qui ne
@@ -1042,6 +1077,14 @@ class ConversationalAgent:
             return
         if self._try_read_back(phrase):
             return
+        # AVANT `_try_apply_by_mail`/`_try_prepare_cv`/`_try_prepare_lm` :
+        # "marque ma candidature..."/"mes candidatures" contiennent
+        # "candidature", sans cet ordre ce serait mal aiguillé vers un
+        # envoi/brouillon au lieu d'une lecture/mise à jour de suivi.
+        if self._try_query_applications(phrase):
+            return
+        if self._try_update_application(phrase):
+            return
         # AVANT `_try_prepare_cv`/`_try_prepare_lm` : "envoie le CV par
         # mail" contient "cv", sans cet ordre ce serait traité comme un
         # simple aperçu chat au lieu d'un envoi réel.
@@ -1431,6 +1474,73 @@ class ConversationalAgent:
         _print_agent_bubble(question)
         return question
 
+    def _try_query_applications(self, phrase: str) -> bool:
+        """« où en sont mes candidatures ? » : liste les candidatures
+        déjà envoyées (cf. `apply_by_mail.py`, qui les enregistre) avec
+        leur statut courant. Exécuté immédiatement, pas de confirmation :
+        une simple lecture, rien d'engageant ni de coûteux."""
+        if not APPLICATIONS_QUERY_RE.search(_normalize(phrase)):
+            return False
+
+        apps = self.applications_store.list()
+        if not apps:
+            self._say("Aucune candidature suivie pour l'instant.")
+            return True
+
+        intro = f"{len(apps)} candidature(s) suivie(s) :"
+        details = "\n".join(app.to_line() for app in apps)
+        _print_agent_bubble(intro)
+        _print_agent_bubble(details)
+        self._finish_say(details, spoken=intro)
+        return True
+
+    def _try_update_application(self, phrase: str) -> bool:
+        """« marque ma candidature chez EDF comme entretien » / « relance
+        ma candidature chez EDF » : met à jour le statut d'une
+        candidature déjà suivie. Exécuté immédiatement, pas de
+        confirmation : un simple changement de statut, instantanément
+        réversible, contrairement à un envoi de mail ou une génération
+        LLM."""
+        normalized = _normalize(phrase)
+        if not UPDATE_APPLICATION_RE.search(normalized):
+            return False
+
+        lowered = normalized.lower()
+        status: ApplicationStatus | None = None
+        if "relance" in lowered or "relancer" in lowered:
+            status = ApplicationStatus.RELANCE
+        for keyword, candidate in _APPLICATION_STATUS_KEYWORDS.items():
+            if keyword in lowered:
+                status = candidate
+                break
+
+        if status is None:
+            self._say(
+                "Je n'ai pas compris le nouveau statut (entretien, refusée, "
+                "acceptée, relance, postulée)."
+            )
+            return True
+
+        words = re.findall(r"\w+", lowered)
+        query = " ".join(
+            w for w in words if w not in _APPLICATION_QUERY_STOPWORDS and len(w) >= 2
+        )
+        application = self.applications_store.find_by_text(query)
+        if application is None:
+            self._say(
+                "Je ne trouve pas cette candidature dans le suivi. "
+                "Elle a peut-être été envoyée avant le suivi, ou le nom "
+                "ne correspond à rien d'enregistré."
+            )
+            return True
+
+        self.applications_store.update_status(application.offer_id, status)
+        self._say(
+            f"Candidature {application.title} marquée comme "
+            f"{status_label(status)}."
+        )
+        return True
+
     def _try_apply_by_mail(self, phrase: str) -> bool:
         """« envoie-moi le CV et la lettre par mail pour cette offre » /
         « postule par mail » : génère CV + lettre (polis par LLM, version
@@ -1467,7 +1577,10 @@ class ConversationalAgent:
         self._ack_processing()
         try:
             dest = self._run_long_task(
-                send_application_by_mail, self.application_writer, offre
+                send_application_by_mail,
+                self.application_writer,
+                offre,
+                applications=self.applications_store,
             )
         except ApplyByMailError as exc:
             print(f"Erreur : {exc}", file=sys.stderr)

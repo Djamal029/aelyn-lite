@@ -28,6 +28,7 @@ def agent():
         patch("aelyn_conversation.agent.EmailAgent"),
         patch("aelyn_conversation.agent.FTOffers"),
         patch("aelyn_conversation.agent.ApplicationWriter"),
+        patch("aelyn_conversation.agent.ApplicationsStore"),
         patch("aelyn_conversation.agent.ChatHistory"),
     ):
         return ConversationalAgent(voice=False)
@@ -634,7 +635,9 @@ class TestPendingConfirmation:
         ) as mock_send:
             result = agent.handle_message("oui")
 
-        mock_send.assert_called_once_with(agent.application_writer, offre)
+        mock_send.assert_called_once_with(
+            agent.application_writer, offre, applications=agent.applications_store
+        )
         assert "moi@example.com" in result.text
         assert agent._pending_action is None
 
@@ -696,3 +699,89 @@ class TestPendingConfirmation:
             agent.handle_message("oui")
 
         mock_converse.assert_called_once()
+
+
+class TestApplicationsTracking:
+    """Suivi des candidatures déjà envoyées (cf. apply_by_mail.py, qui
+    les enregistre) : requête ("où en sont mes candidatures ?") et mise
+    à jour de statut ("marque ma candidature chez EDF comme entretien"),
+    exécutées immédiatement (pas de confirmation : simple lecture ou
+    changement de statut réversible)."""
+
+    @staticmethod
+    def _make_application(**overrides):
+        from datetime import datetime, timezone
+
+        from aelyn_career.applications import Application, ApplicationStatus
+
+        defaults = dict(
+            offer_id="1",
+            title="Data Scientist",
+            company="EDF",
+            status=ApplicationStatus.POSTULE,
+            applied_ts=datetime.now(timezone.utc),
+            updated_ts=datetime.now(timezone.utc),
+            notes=None,
+        )
+        defaults.update(overrides)
+        return Application(**defaults)
+
+    def test_query_applications_lists_tracked_entries(self, agent):
+        app = self._make_application()
+        agent.applications_store.list.return_value = [app]
+
+        result = agent.handle_message("où en sont mes candidatures ?")
+
+        assert "Data Scientist" in result.text
+        assert "EDF" in result.text
+
+    def test_query_applications_reports_empty_state(self, agent):
+        agent.applications_store.list.return_value = []
+
+        result = agent.handle_message("mes candidatures")
+
+        assert "Aucune candidature" in result.text
+
+    def test_update_application_marks_status_by_company(self, agent):
+        from aelyn_career.applications import ApplicationStatus
+
+        app = self._make_application()
+        agent.applications_store.find_by_text.return_value = app
+
+        result = agent.handle_message("marque ma candidature chez EDF comme entretien")
+
+        agent.applications_store.update_status.assert_called_once_with(
+            "1", ApplicationStatus.ENTRETIEN
+        )
+        assert "entretien" in result.text
+
+    def test_update_application_relance_without_explicit_status_word(self, agent):
+        from aelyn_career.applications import ApplicationStatus
+
+        app = self._make_application()
+        agent.applications_store.find_by_text.return_value = app
+
+        agent.handle_message("relance ma candidature chez EDF")
+
+        agent.applications_store.update_status.assert_called_once_with(
+            "1", ApplicationStatus.RELANCE
+        )
+
+    def test_update_application_reports_when_not_found(self, agent):
+        agent.applications_store.find_by_text.return_value = None
+
+        result = agent.handle_message("marque ma candidature chez EDF comme entretien")
+
+        agent.applications_store.update_status.assert_not_called()
+        assert "ne trouve pas" in result.text
+
+    def test_update_application_is_not_caught_by_prepare_lm(self, agent):
+        # "marque ma candidature..." contient "candidature" (déclencheur
+        # de `_try_prepare_lm`) : doit rester intercepté par
+        # `_try_update_application` (ordre de dispatch), pas partir vers
+        # un brouillon de lettre.
+        with patch.object(agent, "_try_prepare_lm") as mock_lm:
+            agent.applications_store.find_by_text.return_value = None
+            agent.handle_message("marque ma candidature chez EDF comme entretien")
+
+        mock_lm.assert_not_called()

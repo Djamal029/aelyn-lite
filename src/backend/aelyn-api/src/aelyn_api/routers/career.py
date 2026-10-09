@@ -11,6 +11,7 @@ from pydantic import BaseModel
 from aelyn.core.llm import LLMError
 from aelyn_career.apply_by_mail import ApplyByMailError, send_application_by_mail
 from aelyn_career.application_writer import ApplicationWriter, offer_text
+from aelyn_career.applications import ApplicationsStore
 from aelyn_career.france_travail.offers import FTOffers
 from aelyn_career.models import CVContent, CanonicalJobOffer, JobSearchResponse
 from aelyn_career.pipeline import find_best_matches
@@ -24,6 +25,7 @@ from aelyn_career.profil_manager import (
 from aelyn_api.deps import (
     cache_offers,
     get_application_writer,
+    get_applications_store,
     get_cached_offer,
     get_conversational_agent,
     get_offers_agent,
@@ -295,6 +297,7 @@ class ApplyByMailOut(BaseModel):
 def apply_by_mail(
     offer_id: str,
     writer: ApplicationWriter = Depends(get_application_writer),
+    applications: ApplicationsStore = Depends(get_applications_store),
 ) -> ApplyByMailOut:
     """Génère le CV et la lettre de motivation pour l'offre, les rend en
     PDF et les envoie par mail à l'utilisateur lui-même (jamais à
@@ -316,7 +319,7 @@ def apply_by_mail(
         )
     titre = offre.get("intitule") or offre.get("title") or "cette offre"
     try:
-        dest = send_application_by_mail(writer, offre)
+        dest = send_application_by_mail(writer, offre, applications=applications)
     except ApplyByMailError as exc:
         raise HTTPException(502, str(exc)) from exc
 

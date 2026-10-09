@@ -15,6 +15,7 @@ from aelyn.core.config import settings
 from aelyn.core.journal import Journal
 from aelyn.core.llm import LLMClient
 from aelyn_career.application_writer import ApplicationWriter
+from aelyn_career.applications import ApplicationsStore
 from aelyn_career.france_travail.offers import FTOffers
 from aelyn_conversation.agent import ConversationalAgent
 from aelyn_email.agent import EmailAgent
@@ -61,6 +62,11 @@ def get_journal() -> Journal:
     # passer par ce singleton) : une seule table `actions`, lue ici en
     # lecture seule pour GET /activity.
     return Journal(settings.journal_path)
+
+
+@lru_cache
+def get_applications_store() -> ApplicationsStore:
+    return ApplicationsStore(settings.applications_path)
 
 
 @lru_cache

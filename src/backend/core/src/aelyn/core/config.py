@@ -208,6 +208,11 @@ class Settings(BaseModel):
         return self.data_dir / "seen_offers.db"
 
     @property
+    def applications_path(self) -> Path:
+        self.data_dir.mkdir(parents=True, exist_ok=True)
+        return self.data_dir / "applications.db"
+
+    @property
     def chat_history_path(self) -> Path:
         self.data_dir.mkdir(parents=True, exist_ok=True)
         return self.data_dir / "chat_history.db"
