@@ -53,6 +53,19 @@ const APPLICATION_GROUP: CommandGroup = {
   ],
 };
 
+const APPLICATIONS_TRACKING_GROUP: CommandGroup = {
+  title: "Suivi des candidatures",
+  note: "Chaque envoi par mail (bouton ou commande) est enregistré automatiquement. Ces commandes s'appliquent ensuite, sans confirmation (simple lecture ou changement de statut, rien d'engageant).",
+  examples: [
+    { phrase: "Où en sont mes candidatures ?", desc: "Liste les candidatures déjà envoyées, avec leur statut actuel." },
+    {
+      phrase: "Marque ma candidature chez EDF comme entretien",
+      desc: "Statuts reconnus : postulée, relance, entretien, refusée, acceptée.",
+    },
+    { phrase: "Relance ma candidature chez EDF", desc: "Équivalent à « ... comme relance »." },
+  ],
+};
+
 const MEDIA_GROUP: CommandGroup = {
   title: "Télé (Freebox)",
   examples: [
@@ -86,8 +99,16 @@ const FREE_GROUP: CommandGroup = {
 
 export function Commands() {
   const groups = LITE_MODE
-    ? [MAIL_GROUP, CAREER_GROUP, APPLICATION_GROUP, MEDIA_GROUP, FREE_GROUP]
-    : [MAIL_GROUP, CAREER_GROUP, APPLICATION_GROUP, MEDIA_GROUP, CAMERA_GROUP, FREE_GROUP];
+    ? [MAIL_GROUP, CAREER_GROUP, APPLICATION_GROUP, APPLICATIONS_TRACKING_GROUP, MEDIA_GROUP, FREE_GROUP]
+    : [
+        MAIL_GROUP,
+        CAREER_GROUP,
+        APPLICATION_GROUP,
+        APPLICATIONS_TRACKING_GROUP,
+        MEDIA_GROUP,
+        CAMERA_GROUP,
+        FREE_GROUP,
+      ];
 
   return (
     <div className={styles.page}>
