@@ -125,6 +125,7 @@ t() {
       profil_invalid) echo "  Not valid, profil.json left unchanged (example kept):" ;;
       profil_already_customized) echo "  profil.json already looks customized (different from the example) - left as-is. Re-run with --reconfigure to redo this step." ;;
       sync_voice) echo "  With voice (speech recognition + synthesis) — re-run with --no-voice to skip this." ;;
+      warn_voice_sync_failed) echo "Installing voice dependencies failed (PyAudio often needs PortAudio headers + a C compiler). Continuing WITHOUT voice: the rest of AELYN works fine without it. Fix PortAudio/build tools and re-run with --reconfigure to add voice back later." ;;
       ollama_heavy_note) echo "  Optional: 'ollama pull mistral:7b' improves intent routing on a PC (not on Raspberry Pi), skipped by default." ;;
       frontend_env_created) echo "created from .env.example" ;;
       done_launch) echo "To launch AELYN:" ;;
@@ -202,6 +203,7 @@ t() {
       profil_invalid) echo "  Non valide, profil.json laissé tel quel (exemple gardé) :" ;;
       profil_already_customized) echo "  profil.json a déjà l'air personnalisé (différent de l'exemple) - laissé tel quel. Relance avec --reconfigure pour refaire cette étape." ;;
       sync_voice) echo "  Avec la voix (reconnaissance + synthèse) — relance avec --no-voice pour sauter cette étape." ;;
+      warn_voice_sync_failed) echo "L'installation des dépendances vocales a échoué (PyAudio a souvent besoin des en-têtes PortAudio + d'un compilateur C). On continue SANS la voix : le reste d'AELYN fonctionne très bien sans elle. Corrige PortAudio/les outils de build et relance avec --reconfigure pour rajouter la voix plus tard." ;;
       ollama_heavy_note) echo "  Optionnel : 'ollama pull mistral:7b' améliore le routage d'intention sur PC (pas sur Raspberry Pi), ignoré par défaut." ;;
       frontend_env_created) echo "créé depuis .env.example" ;;
       done_launch) echo "Pour lancer AELYN :" ;;
@@ -517,7 +519,23 @@ if $WITH_VOICE; then
   SYNC_ARGS+=(--extra voice)
   echo "$(t sync_voice)"
 fi
-(cd "$BACKEND_DIR" && uv sync "${SYNC_ARGS[@]}")
+# `PyAudio` (extra `voice`) compile depuis les sources sur beaucoup de
+# machines (pas de wheel prébuilt pour toutes les combinaisons
+# OS/Python) et a besoin des en-têtes PortAudio + d'un compilateur C :
+# un échec de build ici ne doit PAS faire échouer `set -e` et tuer le
+# reste de l'installation (Ollama, frontend) - bug réel rencontré par un
+# utilisateur. En cas d'échec AVEC --extra voice, on retente SANS (le
+# reste d'AELYN fonctionne très bien sans la voix, cf. `aelyn.core.voice`,
+# dont les imports lourds sont tous paresseux) plutôt que d'abandonner.
+if ! (cd "$BACKEND_DIR" && uv sync "${SYNC_ARGS[@]}"); then
+  if $WITH_VOICE; then
+    warn "$(t warn_voice_sync_failed)"
+    (cd "$BACKEND_DIR" && uv sync --project "$BACKEND_DIR")
+    WITH_VOICE=false
+  else
+    exit 1
+  fi
+fi
 
 # ---------------------------------------------------------------- 6. ollama
 

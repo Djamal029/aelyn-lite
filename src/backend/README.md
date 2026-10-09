@@ -153,6 +153,15 @@ cd aelyn/src/backend
 uv sync --extra voice
 ```
 
+> **`PyAudio` (extra `voice`) peut échouer à compiler** sur une machine sans les
+> en-têtes PortAudio ni de compilateur C (pas de wheel prébuilt pour toutes les
+> combinaisons OS/Python). Si `uv sync --extra voice` échoue pour cette raison,
+> relance simplement `uv sync` (sans `--extra voice`) : le reste d'AELYN
+> fonctionne très bien sans la voix (`aelyn.core.voice` n'importe ces
+> dépendances que paresseusement, jamais au démarrage de l'API/CLI), seule la
+> commande `aelyn chat --voix` reste indisponible. Le script d'installation
+> (voir [Quickstart](#quickstart)) fait déjà ce repli automatiquement.
+>
 > **Piège à connaître avec `uv sync`** : `uv sync --package X` limité à un seul paquet
 > du workspace peut désinstaller silencieusement les dépendances des AUTRES membres.
 > Resynchronise avec `uv sync --extra voice` (ou `--all-packages --extra voice --extra
