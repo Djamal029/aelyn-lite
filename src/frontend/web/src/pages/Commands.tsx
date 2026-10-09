@@ -39,6 +39,20 @@ const CAREER_GROUP: CommandGroup = {
   ],
 };
 
+const APPLICATION_GROUP: CommandGroup = {
+  title: "Candidature (CV, lettre, envoi par mail)",
+  note: "Cherche d'abord des offres (groupe ci-dessus) : ces commandes se réfèrent à l'une d'elles, par position (« la 2 ») ou par mot-clé (entreprise, intitulé). AELYN demande toujours confirmation avant de générer ou d'envoyer quoi que ce soit.",
+  examples: [
+    { phrase: "Prépare-moi un CV pour l'offre chez EDF", desc: "CV adapté à cette offre, affiché dans le chat." },
+    { phrase: "Prépare une lettre de motivation pour la 2", desc: "Lettre adaptée à cette offre." },
+    { phrase: "Affine cette lettre de motivation", desc: "Retravaille la dernière lettre générée, sans repartir de zéro." },
+    {
+      phrase: "Envoie-moi le CV et la lettre par mail pour cette offre",
+      desc: "Version PDF soignée (verbes d'action, prose plus naturelle), envoyée à ta propre adresse, jamais à l'employeur.",
+    },
+  ],
+};
+
 const MEDIA_GROUP: CommandGroup = {
   title: "Télé (Freebox)",
   examples: [
@@ -72,8 +86,8 @@ const FREE_GROUP: CommandGroup = {
 
 export function Commands() {
   const groups = LITE_MODE
-    ? [MAIL_GROUP, CAREER_GROUP, MEDIA_GROUP, FREE_GROUP]
-    : [MAIL_GROUP, CAREER_GROUP, MEDIA_GROUP, CAMERA_GROUP, FREE_GROUP];
+    ? [MAIL_GROUP, CAREER_GROUP, APPLICATION_GROUP, MEDIA_GROUP, FREE_GROUP]
+    : [MAIL_GROUP, CAREER_GROUP, APPLICATION_GROUP, MEDIA_GROUP, CAMERA_GROUP, FREE_GROUP];
 
   return (
     <div className={styles.page}>

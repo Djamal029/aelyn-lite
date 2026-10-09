@@ -605,6 +605,49 @@ class TestPendingConfirmation:
         assert agent._last_lm == "Madame, Monsieur,"
         assert agent._pending_action is None
 
+    # Envoi par mail (CV + lettre).
+
+    def test_apply_by_mail_asks_before_executing(self, agent):
+        offre = self._make_offer()
+        agent._last_offers = [offre]
+        with patch(
+            "aelyn_conversation.agent.send_application_by_mail"
+        ) as mock_send:
+            result = agent.handle_message(
+                "envoie-moi le CV et la lettre par mail pour l'offre chez EDF"
+            )
+
+        mock_send.assert_not_called()
+        assert "Data Scientist" in result.text
+        assert agent._pending_action == {"kind": "apply_by_mail", "offre": offre}
+
+    def test_apply_by_mail_confirmed_executes(self, agent):
+        offre = self._make_offer()
+        agent._last_offers = [offre]
+        agent.handle_message(
+            "envoie-moi le CV et la lettre par mail pour l'offre chez EDF"
+        )
+
+        with patch(
+            "aelyn_conversation.agent.send_application_by_mail",
+            return_value="moi@example.com",
+        ) as mock_send:
+            result = agent.handle_message("oui")
+
+        mock_send.assert_called_once_with(agent.application_writer, offre)
+        assert "moi@example.com" in result.text
+        assert agent._pending_action is None
+
+    def test_apply_by_mail_is_not_caught_by_prepare_cv(self, agent):
+        # "envoie le CV par mail" contient "cv" (déclencheur de
+        # `_try_prepare_cv`) : doit rester intercepté par
+        # `_try_apply_by_mail` (ordre de dispatch), pas partir vers un
+        # simple aperçu chat.
+        with patch.object(agent, "_try_prepare_cv") as mock_cv:
+            agent.handle_message("envoie-moi le CV par mail pour cette offre")
+
+        mock_cv.assert_not_called()
+
     def test_refine_lm_asks_before_executing(self, agent):
         agent._last_lm = "Ancienne lettre."
         agent._last_lm_offer = self._make_offer()

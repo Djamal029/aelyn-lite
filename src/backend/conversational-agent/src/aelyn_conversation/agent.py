@@ -49,6 +49,7 @@ from aelyn_career.application_writer import (
     format_cv_text,
     offer_text,
 )
+from aelyn_career.apply_by_mail import ApplyByMailError, send_application_by_mail
 from aelyn_career.france_travail.offers import FTOffers
 from aelyn_email.agent import EmailAgent, run_command
 from aelyn_email.models import Mail
@@ -213,6 +214,17 @@ DESCRIBE_OFFER_RE = re.compile(r"\bd[ée]cri\w*\b|\bd[ée]taill\w*\b", re.IGNORE
 PREPARE_CV_RE = re.compile(r"\b(cv|curriculum)\b", re.IGNORECASE)
 PREPARE_LM_RE = re.compile(
     r"\blettre\w*\s+de\s+motivation\b|\bcandidature\b", re.IGNORECASE
+)
+# "envoie-moi le CV et la lettre par mail / postule par mail pour cette
+# offre" : interceptée AVANT `_try_prepare_cv`/`_try_prepare_lm` (qui
+# matchent aussi "cv"/"candidature" et ne feraient qu'un aperçu chat au
+# lieu d'un vrai envoi par mail). Exige "mail" ET un mot lié au
+# CV/à la lettre/à la candidature, pour ne jamais capter un "réponds à
+# ce mail"/"rédige un mail pour X" sans rapport (cf. `_try_draft`).
+APPLY_BY_MAIL_MAIL_RE = re.compile(r"\bmail\b", re.IGNORECASE)
+APPLY_BY_MAIL_SUBJECT_RE = re.compile(
+    r"\b(cv|curriculum)\b|\blettre\w*\s+de\s+motivation\b|\bcandidature\b",
+    re.IGNORECASE,
 )
 # "affine/améliore/retravaille cette lettre de motivation" : interceptée
 # AVANT `_try_prepare_lm` (qui matche aussi "lettre de motivation" et
@@ -1030,6 +1042,11 @@ class ConversationalAgent:
             return
         if self._try_read_back(phrase):
             return
+        # AVANT `_try_prepare_cv`/`_try_prepare_lm` : "envoie le CV par
+        # mail" contient "cv", sans cet ordre ce serait traité comme un
+        # simple aperçu chat au lieu d'un envoi réel.
+        if self._try_apply_by_mail(phrase):
+            return
         # AVANT `_try_draft` : "rédige une lettre de motivation" contient
         # "rédige" (le déclencheur de `_try_draft`, pensé pour un brouillon
         # de MAIL), sans cet ordre, cette phrase serait mal aiguillée.
@@ -1189,6 +1206,8 @@ class ConversationalAgent:
                 self._run_prepare_lm(action["offre"])
             elif kind == "refine_lm":
                 self._run_refine_lm()
+            elif kind == "apply_by_mail":
+                self._run_apply_by_mail(action["offre"])
             return True
 
         return False
@@ -1411,6 +1430,53 @@ class ConversationalAgent:
             question += f"\n\n{infos}"
         _print_agent_bubble(question)
         return question
+
+    def _try_apply_by_mail(self, phrase: str) -> bool:
+        """« envoie-moi le CV et la lettre par mail pour cette offre » /
+        « postule par mail » : génère CV + lettre (polis par LLM, version
+        soignée pour un vrai employeur, cf. `apply_by_mail.py`), les rend
+        en PDF et les envoie à l'utilisateur lui-même (jamais à
+        l'employeur, cf. docstring de `send_application_by_mail`).
+
+        Même principe de confirmation proactive que `_try_prepare_cv`/
+        `_try_prepare_lm` (cf. `_pending_action`/`_run_apply_by_mail`) :
+        c'est l'appel le plus long et le plus engageant (deux appels LLM
+        de style + un envoi SMTP réel), jamais déclenché sans accord
+        explicite."""
+        normalized = _normalize(phrase)
+        if not APPLY_BY_MAIL_MAIL_RE.search(normalized):
+            return False
+        if not APPLY_BY_MAIL_SUBJECT_RE.search(normalized):
+            return False
+
+        offre = self._find_offer(phrase)
+        if offre is None:
+            self._say(
+                "Je ne sais pas de quelle offre tu parles. Cherche d'abord des offres."
+            )
+            return True
+
+        self._pending_action = {"kind": "apply_by_mail", "offre": offre}
+        self._say(
+            "Veux-tu que je t'envoie le CV et la lettre de motivation par mail pour "
+            f"{offre.get('intitule') or 'cette offre'} ?"
+        )
+        return True
+
+    def _run_apply_by_mail(self, offre: dict) -> None:
+        self._ack_processing()
+        try:
+            dest = self._run_long_task(
+                send_application_by_mail, self.application_writer, offre
+            )
+        except ApplyByMailError as exc:
+            print(f"Erreur : {exc}", file=sys.stderr)
+            self._say(f"Je n'ai pas pu envoyer le mail : {exc}")
+            return
+        self._say(
+            f"Envoyé à {dest} : CV et lettre de motivation pour "
+            f"{offre.get('intitule') or 'cette offre'}."
+        )
 
     def _try_prepare_cv(self, phrase: str) -> bool:
         """« prépare-moi un CV pour cette offre » : CV adapté et priorisé

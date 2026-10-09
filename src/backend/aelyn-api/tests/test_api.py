@@ -652,7 +652,9 @@ class TestApplyByMail:
             sent["subject"] = subject
             sent["attachment_names"] = [a[0] for a in attachments]
 
-        monkeypatch.setattr("aelyn_api.routers.career.send_mail_with_attachments", fake_send)
+        monkeypatch.setattr(
+            "aelyn_career.apply_by_mail.send_mail_with_attachments", fake_send
+        )
         app.dependency_overrides[get_offers_agent] = lambda: MagicMock()
         app.dependency_overrides[get_application_writer] = lambda: writer
         try:

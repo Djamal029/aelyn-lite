@@ -8,15 +8,13 @@ import shutil
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
-from aelyn.core.config import settings
 from aelyn.core.llm import LLMError
+from aelyn_career.apply_by_mail import ApplyByMailError, send_application_by_mail
 from aelyn_career.application_writer import ApplicationWriter, offer_text
 from aelyn_career.france_travail.offers import FTOffers
 from aelyn_career.models import CVContent, CanonicalJobOffer, JobSearchResponse
-from aelyn_career.pdf_export import cover_letter_to_pdf_bytes, cv_to_pdf_bytes
 from aelyn_career.pipeline import find_best_matches
 from aelyn_career.search import JobSearchService
-from aelyn_email.client import send_mail_with_attachments
 from aelyn_career.profil_manager import (
     load_profil_json,
     profil_path,
@@ -305,48 +303,22 @@ def apply_by_mail(
     `source_adapters.py`). Toujours une action explicite déclenchée par
     un clic/une commande précise, jamais autonome : pas besoin du garde-
     fou `ALLOW_AUTONOMOUS_SEND` (réservé aux réponses à des mails reçus,
-    cf. `email-agent/agent.py`), qui ne s'applique pas ici."""
+    cf. `email-agent/agent.py`), qui ne s'applique pas ici.
+
+    Logique partagée avec la commande vocale/texte équivalente (cf.
+    `aelyn_career.apply_by_mail.send_application_by_mail`, aussi
+    utilisée par `aelyn_conversation.agent`)."""
     offre = get_cached_offer(offer_id)
     if offre is None:
         raise HTTPException(
             404,
             f"Offre {offer_id} inconnue - appelle GET /career d'abord pour la charger.",
         )
-    dest = settings.user_contact_email or settings.email_user
-    if not dest:
-        raise HTTPException(500, "Aucune adresse mail configurée (USER_CONTACT_EMAIL ou EMAIL_USER).")
-
     titre = offre.get("intitule") or offre.get("title") or "cette offre"
     try:
-        cv = writer.draft_cv(offer_text(offre))
-        lettre = writer.draft_cover_letter(offer_text(offre))
-    except LLMError as exc:
-        raise HTTPException(502, f"LLM indisponible : {exc}") from exc
-
-    # Document final envoyé à un vrai employeur : on investit le temps
-    # LLM ici pour le style (verbes d'action forts, prose moins mécanique),
-    # contrairement à l'aperçu rapide dans le chat (CV/LM restent
-    # déterministes là-bas). Chaque polish retombe silencieusement sur la
-    # version déterministe en cas d'échec (LLM indisponible, ou faits
-    # altérés) : jamais d'erreur ici pour un simple échec de style.
-    cv = writer.polish_cv_with_llm(cv)
-    lettre = writer.polish_cover_letter_with_llm(lettre)
-
-    cv_pdf = cv_to_pdf_bytes(cv, header_lines=writer.contact_header().split("\n"))
-    lm_pdf = cover_letter_to_pdf_bytes(lettre)
-
-    try:
-        send_mail_with_attachments(
-            to=dest,
-            subject=f"Candidature prête : {titre}",
-            body=(
-                f"Voici le CV et la lettre de motivation générés pour « {titre} », "
-                "prêts à joindre sur le site de l'offre."
-            ),
-            attachments=[("CV.pdf", cv_pdf, "pdf"), ("Lettre_de_motivation.pdf", lm_pdf, "pdf")],
-        )
-    except Exception as exc:
-        raise HTTPException(502, f"Envoi du mail impossible : {exc}") from exc
+        dest = send_application_by_mail(writer, offre)
+    except ApplyByMailError as exc:
+        raise HTTPException(502, str(exc)) from exc
 
     return ApplyByMailOut(sent_to=dest, offer_title=titre)
 
