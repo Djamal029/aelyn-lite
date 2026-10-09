@@ -74,6 +74,7 @@ t() {
       step_done) echo "8/8 Done" ;;
       err_uv) echo "uv still not found after attempting to install it automatically (no internet access, or an unsupported setup). Install it by hand: https://docs.astral.sh/uv/getting-started/installation/, then re-run this script." ;;
       info_installing_uv) echo "uv not found, installing it automatically..." ;;
+      info_installing_ollama) echo "Ollama not found, installing it automatically (Linux only)..." ;;
       err_ollama_missing) echo "Ollama not found. Install it: https://ollama.com/download" ;;
       err_ollama_down) echo "Ollama is installed but not responding. Run 'ollama serve' in another terminal, then re-run this script." ;;
       err_npm) echo "npm not found. Install Node.js: https://nodejs.org" ;;
@@ -155,6 +156,7 @@ t() {
       step_done) echo "8/8 Terminé" ;;
       err_uv) echo "uv reste introuvable même après une tentative d'installation automatique (pas d'accès internet, ou configuration non prise en charge). Installe-le à la main : https://docs.astral.sh/uv/getting-started/installation/, puis relance ce script." ;;
       info_installing_uv) echo "uv introuvable, installation automatique en cours..." ;;
+      info_installing_ollama) echo "Ollama introuvable, installation automatique en cours (Linux uniquement)..." ;;
       err_ollama_missing) echo "Ollama est introuvable. Installe-le : https://ollama.com/download" ;;
       err_ollama_down) echo "Ollama est installé mais ne répond pas. Lance 'ollama serve' dans un autre terminal puis relance ce script." ;;
       err_npm) echo "npm est introuvable. Installe Node.js : https://nodejs.org" ;;
@@ -252,8 +254,20 @@ fi
 echo "  uv : $(uv --version)"
 
 if ! command -v ollama >/dev/null 2>&1; then
-  err "$(t err_ollama_missing)"
-  exit 1
+  # Auto-installable de façon fiable UNIQUEMENT sur Linux (installateur
+  # officiel en une ligne, cf. https://ollama.com/download/linux). Sur
+  # macOS (.app/.dmg) et Windows (installeur graphique .exe), aucune
+  # méthode silencieuse aussi fiable n'existe : on garde le lien manuel
+  # plutôt que de risquer une install à moitié faite sans que
+  # l'utilisateur ne s'en aperçoive.
+  if [ "$(uname -s 2>/dev/null)" = "Linux" ]; then
+    warn "$(t info_installing_ollama)"
+    curl -fsSL https://ollama.com/install.sh | sh || true
+  fi
+  if ! command -v ollama >/dev/null 2>&1; then
+    err "$(t err_ollama_missing)"
+    exit 1
+  fi
 fi
 if ! ollama list >/dev/null 2>&1; then
   err "$(t err_ollama_down)"
