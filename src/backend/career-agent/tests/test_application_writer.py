@@ -158,6 +158,54 @@ def test_cv_keeps_distinct_same_employer_experiences_and_omitted_recent_period()
     assert len(validated) == 4
 
 
+def test_strengthen_bullet_verb_converts_matching_nominalization():
+    writer = make_writer()
+
+    result = writer._strengthen_bullet_verb(
+        "Automatisation des pipelines de nettoyage en R."
+    )
+
+    assert result == "Automatisé pipelines de nettoyage en R."
+
+
+def test_strengthen_bullet_verb_handles_apostrophe_preposition():
+    writer = make_writer()
+
+    result = writer._strengthen_bullet_verb("Développement d'une méthode robuste.")
+
+    assert result == "Développé une méthode robuste."
+
+
+def test_strengthen_bullet_verb_handles_multi_word_nominalization():
+    writer = make_writer()
+
+    result = writer._strengthen_bullet_verb("Mise en place de tableaux de bord.")
+
+    assert result == "Mis en place tableaux de bord."
+
+
+def test_strengthen_bullet_verb_leaves_non_matching_bullet_unchanged():
+    writer = make_writer()
+
+    # "Application" matche un préfixe connu, mais rien de ressemblant à
+    # une préposition ne suit ("interactive") : doit rester inchangé
+    # plutôt que de produire "Appliqué interactive déployée..." (faux
+    # sens, "Application" désigne ici un logiciel, pas l'acte d'appliquer).
+    original = "Application interactive déployée avec tests unitaires."
+    result = writer._strengthen_bullet_verb(original)
+
+    assert result == original
+
+
+def test_strengthen_bullet_verb_leaves_bullet_without_known_noun_unchanged():
+    writer = make_writer()
+
+    original = "Nouvelle méthodologie robuste, pas encore développée ailleurs."
+    result = writer._strengthen_bullet_verb(original)
+
+    assert result == original
+
+
 def test_cv_formation_comes_from_profile_not_llm():
     """`cv.formation` (simple `list[str]`) n'avait aucune validation,
     contrairement aux expériences/projets : le LLM pouvait reformuler ou

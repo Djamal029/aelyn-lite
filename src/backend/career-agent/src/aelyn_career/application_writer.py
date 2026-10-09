@@ -388,6 +388,90 @@ class ApplicationWriter:
         validated.sort(key=lambda item: _experience_order(item.periode), reverse=True)
         return validated
 
+    # Nominalisation -> participe passé invariant, en tête de puce CV
+    # ("Développement de X" -> "Développé X") : conversion DÉTERMINISTE,
+    # jamais soumise à un LLM, donc jamais indisponible/incohérente.
+    # Retour utilisateur réel : même le polish LLM lent (`apply_by_mail`,
+    # mistral:7b) ne produit des puces à verbe d'action fort que sur une
+    # minorité de cas (gemma3:4b échouait presque systématiquement) -
+    # cette conversion couvre déterministement le cas le plus fréquent
+    # du profil (une puce qui commence littéralement par la nominalisation
+    # d'un verbe), pour TOUTE génération de CV (aperçu chat rapide ET
+    # "postuler par mail"), pas seulement le mode lent.
+    _NOUN_TO_VERB: dict[str, str] = {
+        "développement": "Développé",
+        "conception": "Conçu",
+        "modélisation": "Modélisé",
+        "analyse": "Analysé",
+        "automatisation": "Automatisé",
+        "évaluation": "Évalué",
+        "gestion": "Géré",
+        "rédaction": "Rédigé",
+        "coordination": "Coordonné",
+        "optimisation": "Optimisé",
+        "création": "Créé",
+        "réalisation": "Réalisé",
+        "étude": "Étudié",
+        "planification": "Planifié",
+        "collecte": "Collecté",
+        "traitement": "Traité",
+        "construction": "Construit",
+        "déploiement": "Déployé",
+        "identification": "Identifié",
+        "validation": "Validé",
+        "amélioration": "Amélioré",
+        "renforcement": "Renforcé",
+        "structuration": "Structuré",
+        "industrialisation": "Industrialisé",
+        "quantification": "Quantifié",
+        "application": "Appliqué",
+        "nettoyage": "Nettoyé",
+        "visualisation": "Visualisé",
+        "présentation": "Présenté",
+        "formation": "Formé",
+        "pilotage": "Piloté",
+        "animation": "Animé",
+        "supervision": "Supervisé",
+        "encadrement": "Encadré",
+        "élaboration": "Élaboré",
+        "conduite": "Conduit",
+        "production": "Produit",
+        "mise en place": "Mis en place",
+        "mise en œuvre": "Mis en œuvre",
+        "mise à jour": "Mis à jour",
+    }
+    _NOMINALIZATION_PREPOSITIONS = ("de ", "d'", "du ", "des ")
+
+    @classmethod
+    def _strengthen_bullet_verb(cls, bullet: str) -> str:
+        """"Développement de X" -> "Développé X". Volontairement STRICT :
+        seule une puce qui commence EXACTEMENT par une nominalisation
+        connue suivie de "de"/"d'"/"du"/"des" est transformée (ex.
+        "Application interactive déployée..." n'est PAS touchée : rien
+        ne suit "Application" qui ressemble à une préposition). Une puce
+        qui ne matche pas ce patron précis garde sa formulation d'origine
+        plutôt que de risquer une tournure grammaticalement bancale."""
+        stripped = bullet.strip()
+        lowered = stripped.lower()
+        for noun, verb in sorted(
+            cls._NOUN_TO_VERB.items(), key=lambda kv: -len(kv[0])
+        ):
+            if not lowered.startswith(noun):
+                continue
+            rest = stripped[len(noun):]
+            if not rest.startswith(" "):
+                break
+            rest = rest[1:]
+            rest_lower = rest.lower()
+            for prep in cls._NOMINALIZATION_PREPOSITIONS:
+                if not rest_lower.startswith(prep):
+                    continue
+                remainder = rest[len(prep):].lstrip()
+                if remainder:
+                    return f"{verb} {remainder}"
+            break
+        return stripped
+
     @staticmethod
     def _looks_french(text: str) -> bool:
         """Heuristique légère : certaines expériences de profil.json ont
@@ -421,7 +505,7 @@ class ApplicationWriter:
                     break
                 if sentence not in bullets:
                     bullets.append(sentence if sentence.endswith(".") else sentence + ".")
-        return bullets[:3]
+        return [self._strengthen_bullet_verb(bullet) for bullet in bullets[:3]]
 
     def _validate_projets(self, projets: list[CVProjet]) -> list[CVProjet]:
         """Un titre de projet correct n'implique pas une description
