@@ -504,7 +504,7 @@ class ApplicationWriter:
             if isinstance(skill, str) and _single_line(skill)
         ][:5]
         if skills:
-            sentences.append(f"Mes compétences déclarées incluent {', '.join(skills)}.")
+            sentences.append(f"Mes compétences clés incluent {', '.join(skills)}.")
         first_line = _single_line(offer_context.splitlines()[0] if offer_context.splitlines() else "")
         target = _offer_context_value(offer_context, "Intitulé") or first_line
         if target.casefold().startswith(("entreprise :", "lieu :", "contrat :", "description")):
@@ -811,20 +811,23 @@ class ApplicationWriter:
             employer = _single_line(meta.get("company"))
             period = _single_line(meta.get("period"))
             description = _single_line(meta.get("description"))
-            heading = "Mon expérience"
+            # Phrase d'intro naturelle ("En tant que X chez Y (période), ...")
+            # plutôt qu'un en-tête suivi d'une citation entre guillemets : la
+            # description de profil.json est déjà une phrase complète bien
+            # écrite, pas besoin de la présenter comme une citation rapportée.
+            intro = "En tant que"
             if role:
-                heading += f" comme {role}"
+                intro += f" {role}"
             if employer:
-                heading += f" chez {employer}"
+                intro += f" chez {employer}"
             if period:
-                heading += f" ({period})"
+                intro += f" ({period})"
             if description:
-                paragraphs.append(f"{heading} portait notamment sur : « {description} ».")
-            highlights = meta.get("highlights", [])
-            if highlights:
-                paragraphs.append(
-                    f"Un fait renseigné pour cette expérience : « {_single_line(highlights[0])} »."
-                )
+                first_char = description[:1].lower() if description[:1].isupper() else description[:1]
+                paragraphs.append(f"{intro}, {first_char}{description[1:]}")
+            # `highlights` (quand présent) est en anglais dans profil.json
+            # pour certaines expériences : jamais mélangé à une lettre en
+            # français, `description` suffit toujours comme fait source.
 
         _, _, skills, _ = self._selection_records()
         chosen_skills = [
@@ -833,9 +836,7 @@ class ApplicationWriter:
             if 0 <= index < len(skills)
         ]
         if chosen_skills:
-            paragraphs.append(
-                f"Les compétences présentes dans mon profil incluent : {', '.join(chosen_skills)}."
-            )
+            paragraphs.append(f"Je maîtrise notamment {', '.join(chosen_skills)}.")
 
         if short:
             paragraphs.extend(["Je reste à votre disposition pour un échange.", "Cordialement,", settings.user_name])
