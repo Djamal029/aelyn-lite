@@ -29,14 +29,19 @@ security = [
     "ultralytics>=8.4.157",
     "mediapipe>=1.0.1",
 ]
-# Passerelle vers l'extra `voice` de `core` (cf. core/pyproject.toml) : un
-# `--extra` ne s'applique qu'au paquet explicitement ciblé par `uv sync`
-# (`aelyn-backend` par défaut, qui n'a pas de table `optional-dependencies`
-# propre pour "voice"), jamais implicitement à un membre du workspace.
-# Sans cette passerelle, demander la voix depuis la racine sans
-# `--all-packages` (qui réintroduirait security-agent, cf. ci-dessus)
-# échouait avec "Extra `voice` is not defined... for `aelyn-backend`".
-voice = ["aelyn[voice]"]
+# Passerelle vers l'extra `voice` de `core` ET `aelyn-api` (cf. leurs
+# pyproject.toml respectifs) : un `--extra` ne s'applique qu'au paquet
+# explicitement ciblé par `uv sync` (`aelyn-backend` par défaut, qui n'a
+# pas de table `optional-dependencies` propre pour "voice"), jamais
+# implicitement à un membre du workspace. Sans cette passerelle, demander
+# la voix depuis la racine sans `--all-packages` (qui réintroduirait
+# security-agent, cf. ci-dessus) échouait avec "Extra `voice` is not
+# defined... for `aelyn-backend`". Les DEUX paquets (`aelyn[voice]` pour
+# le CLI/`core`, `aelyn-api[voice]` pour `POST /tts`) sont nécessaires :
+# chacun déclare `voice` comme optionnel de son côté (jamais une
+# dépendance dure), voir leurs pyproject.toml pour le bug réel que ça
+# corrige (PyAudio forcé à compiler pour tout le monde sinon).
+voice = ["aelyn[voice]", "aelyn-api[voice]"]
 
 [tool.uv]
 package = false

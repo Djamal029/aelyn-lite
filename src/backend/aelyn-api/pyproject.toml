@@ -4,9 +4,7 @@ version = "0.1.0"
 description = "AELYN : API REST (FastAPI) exposant les agents existants (mail/carrière/média/caméras) à un frontend"
 requires-python = ">=3.11"
 dependencies = [
-    # [voice] : POST /tts (cf. routers/tts.py) réutilise Kokoro/Edge TTS,
-    # exactement comme `aelyn chat --voix`, même extra que le CLI.
-    "aelyn[voice]",
+    "aelyn",
     "aelyn-email",
     "aelyn-career",
     "aelyn-media",
@@ -23,6 +21,20 @@ dependencies = [
     # jamais casser silencieusement au gré des mises à jour de ces libs.
     "psutil>=5.9",
 ]
+
+# [voice] : POST /tts (cf. routers/tts.py) réutilise Kokoro/Edge TTS,
+# exactement comme `aelyn chat --voix`, même extra que le CLI. DOIT
+# rester optionnel ici (pas dans `dependencies` ci-dessus) : bug réel
+# rencontré en direct sur une install Linux fraîche - `aelyn[voice]` en
+# dépendance DURE de `aelyn-api` (elle-même dépendance dure de
+# `aelyn-backend`) forçait PyAudio à compiler pour TOUT LE MONDE, même
+# un simple `uv sync` sans `--extra voice`, et échouait sans PortAudio
+# installé au niveau système. `aelyn.core.voice`/`POST /tts` restent
+# sûrs sans cet extra (imports lourds tous paresseux, `VoiceError` géré
+# proprement, cf. `tts.py`) : seule la fonctionnalité voix elle-même
+# devient indisponible, jamais tout le process API.
+[project.optional-dependencies]
+voice = ["aelyn[voice]"]
 
 [dependency-groups]
 dev = ["pytest>=8", "httpx>=0.27"]
