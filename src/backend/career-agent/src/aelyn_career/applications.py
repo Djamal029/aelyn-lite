@@ -121,6 +121,19 @@ class ApplicationsStore:
             session.commit()
             return _to_application(row)
 
+    def delete(self, offer_id: str) -> bool:
+        """Retire une candidature du suivi (ex. une candidature marquée
+        par erreur, un test). Renvoie `True` si une ligne a bien été
+        supprimée, `False` si `offer_id` n'existait pas (idempotent :
+        appeler deux fois ne lève jamais d'erreur)."""
+        with Session(self._engine) as session:
+            row = session.get(ApplicationRow, offer_id)
+            if row is None:
+                return False
+            session.delete(row)
+            session.commit()
+            return True
+
     def get(self, offer_id: str) -> Application | None:
         with Session(self._engine) as session:
             row = session.get(ApplicationRow, offer_id)

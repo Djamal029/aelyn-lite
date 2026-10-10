@@ -28,6 +28,22 @@ def test_record_is_idempotent_and_never_resets_an_already_tracked_status(
     assert again.status == ApplicationStatus.ENTRETIEN
 
 
+def test_delete_removes_a_tracked_application(tmp_path: Path):
+    store = ApplicationsStore(tmp_path / "applications.db")
+    store.record(offer_id="1", title="Data Scientist", company="ACME")
+
+    deleted = store.delete("1")
+
+    assert deleted is True
+    assert store.get("1") is None
+
+
+def test_delete_is_idempotent_for_an_unknown_offer(tmp_path: Path):
+    store = ApplicationsStore(tmp_path / "applications.db")
+
+    assert store.delete("never-existed") is False
+
+
 def test_update_status_changes_status_and_returns_none_for_unknown_offer(
     tmp_path: Path,
 ):
