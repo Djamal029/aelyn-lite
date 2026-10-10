@@ -129,5 +129,11 @@ class CVContent(BaseModel):
     Learning", "Statistique & Méthodologie"), jamais une liste plate."""
     formation: list[str]
     certifications: list[str] = Field(max_length=3)
+    certification_urls: dict[str, str] = Field(default_factory=dict)
+    """Titre de certification -> URL de vérification, pour celles du profil
+    dont l'URL est connue et vérifiée (jamais devinée/générée : une URL
+    Coursera mal formée pointe vers une page 404, cf. les corrections de
+    liens de certificats faites en session). Rempli uniquement par
+    `ApplicationWriter`, jamais par le LLM."""
     langues: list[str] = []
     centres_interet: list[str] = []

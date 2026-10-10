@@ -1,7 +1,12 @@
 from unittest.mock import Mock, patch
 
 from aelyn.core.config import settings
-from aelyn_career.application_writer import ApplicationSelection, ApplicationWriter, _merge_indices
+from aelyn_career.application_writer import (
+    ApplicationSelection,
+    ApplicationWriter,
+    _merge_indices,
+    _period_with_duration,
+)
 from aelyn_career.models import CVContent, CVExperience
 from aelyn_career.profil_manager import ProfilManager, validate_profil_structure
 
@@ -544,3 +549,30 @@ def test_polish_cover_letter_with_llm_falls_back_when_a_number_is_altered():
     polished = writer.polish_cover_letter_with_llm(letter)
 
     assert polished == letter
+
+
+def test_period_with_duration_appends_the_profile_duration():
+    meta = {"period": "May 2026 - September 2026", "duration": "4 mois"}
+
+    assert _period_with_duration(meta) == "May 2026 - September 2026 (4 mois)"
+
+
+def test_period_with_duration_leaves_period_unchanged_without_a_duration_field():
+    meta = {"period": "May 2026 - September 2026"}
+
+    assert _period_with_duration(meta) == "May 2026 - September 2026"
+
+
+def test_period_with_duration_never_invents_a_duration_from_the_period_text():
+    """Un recalcul naïf par noms de mois donnerait 3 mois pour cette période
+    (juin -> août), alors que le stage réel a duré 1,5 mois (fin juin à
+    mi-août, pas des mois civils entiers) : la durée doit venir exclusivement
+    du champ `duration`, jamais d'un parsing du texte libre de `period`."""
+    meta = {"period": "End of Jun 2025 - Middle August", "duration": "1 mois et demi"}
+    expected = "End of Jun 2025 - Middle August (1 mois et demi)"
+
+    assert _period_with_duration(meta) == expected
+
+
+def test_period_with_duration_falls_back_to_the_given_period_when_metadata_lacks_one():
+    assert _period_with_duration({}, fallback="Mai 2026") == "Mai 2026"

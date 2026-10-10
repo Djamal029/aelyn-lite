@@ -87,6 +87,14 @@ def _styles() -> dict:
     }
 
 
+def _xml_escape(text: str) -> str:
+    """Un titre de certification ou une URL peut contenir `&`/`<`/`>` (ex.
+    "R&D") : reportlab interprète le texte d'un Paragraph comme du
+    mini-XML, donc un caractère non échappé casse le rendu (balise
+    invalide) plutôt que de s'afficher tel quel."""
+    return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+
 def _rule() -> HRFlowable:
     return HRFlowable(width="100%", color=_ACCENT, thickness=0.8, spaceAfter=3)
 
@@ -166,7 +174,15 @@ def cv_to_pdf_bytes(cv: CVContent, *, header_lines: list[str]) -> bytes:
     if cv.certifications:
         story += _section("Certifications", s)
         for c in cv.certifications:
-            story.append(Paragraph(c, s["body"]))
+            url = cv.certification_urls.get(c)
+            if url:
+                text = (
+                    f'<link href="{_xml_escape(url)}">'
+                    f'<font color="#00868C"><u>{_xml_escape(c)}</u></font></link>'
+                )
+            else:
+                text = _xml_escape(c)
+            story.append(Paragraph(text, s["body"]))
 
     if cv.langues:
         story += _section("Langues", s)

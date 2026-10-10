@@ -209,6 +209,13 @@ class Settings(BaseModel):
     # 3h par défaut : assez rare pour ne pas spammer le flux Activité ni
     # saturer l'API France Travail, assez fréquent pour rester utile.
     proactive_search_interval_minutes: int = 180
+    # Dossier où chaque candidature (CV + LM, Word et PDF, description de
+    # l'offre) est sauvegardée dans un sous-dossier dédié, en plus de
+    # l'envoi par mail. `None` = dossier par défaut sous `data_dir`
+    # (fonctionne sans configuration) ; une personne peut pointer vers son
+    # propre classeur de candidatures (ex. un dossier déjà suivi par
+    # Dossier/OneDrive) via `APPLICATIONS_EXPORT_DIR` dans `.env`.
+    applications_export_dir: Path | None = None
 
     @property
     def journal_path(self) -> Path:
@@ -224,6 +231,16 @@ class Settings(BaseModel):
     def applications_path(self) -> Path:
         self.data_dir.mkdir(parents=True, exist_ok=True)
         return self.data_dir / "applications.db"
+
+    @property
+    def applications_export_dir_resolved(self) -> Path:
+        """Racine des dossiers de candidature (un sous-dossier par offre),
+        distincte de `applications_path` (le suivi de statut en base). Ne
+        crée QUE la racine, jamais les sous-dossiers par offre (cf.
+        `aelyn_career.application_folder`)."""
+        root = self.applications_export_dir or (self.data_dir / "candidatures")
+        root.mkdir(parents=True, exist_ok=True)
+        return root
 
     @property
     def chat_history_path(self) -> Path:
@@ -300,6 +317,11 @@ def get_settings() -> Settings:
         proactive_search_enabled=_env_bool("PROACTIVE_SEARCH_ENABLED", False),
         proactive_search_interval_minutes=_env_int(
             "PROACTIVE_SEARCH_INTERVAL_MINUTES", 180
+        ),
+        applications_export_dir=(
+            Path(os.environ["APPLICATIONS_EXPORT_DIR"])
+            if os.getenv("APPLICATIONS_EXPORT_DIR")
+            else None
         ),
     )
 

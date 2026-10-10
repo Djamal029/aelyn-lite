@@ -11,6 +11,7 @@ dependencies = [
     "requests>=2.31",
     "torch>=2.9",
     "reportlab>=4.0",
+    "python-docx>=1.1",
 ]
 
 [dependency-groups]

@@ -662,6 +662,15 @@ class TestApplyByMail:
         monkeypatch.setattr(
             "aelyn_career.apply_by_mail.send_mail_with_attachments", fake_send
         )
+        # `send_application_by_mail` sauvegarde aussi un dossier local
+        # (cf. `application_folder.save_application_folder`) : sans ce
+        # monkeypatch, le test écrirait pour de vrai dans le dossier de
+        # candidatures réel de la machine qui exécute les tests.
+        from aelyn.core.config import settings as career_settings
+
+        monkeypatch.setattr(
+            career_settings, "applications_export_dir", tmp_path / "candidatures"
+        )
         applications_store = ApplicationsStore(tmp_path / "applications.db")
         app.dependency_overrides[get_offers_agent] = lambda: MagicMock()
         app.dependency_overrides[get_application_writer] = lambda: writer
@@ -684,6 +693,14 @@ class TestApplyByMail:
         assert tracked is not None
         assert tracked.title == "Data Scientist"
         assert tracked.company == "ACME"
+
+        saved_folders = list((tmp_path / "candidatures").iterdir())
+        assert len(saved_folders) == 1
+        saved_files = {p.name for p in saved_folders[0].iterdir()}
+        assert saved_files == {
+            "description.md", "CV.docx", "CV.pdf",
+            "Lettre_de_motivation.docx", "Lettre_de_motivation.pdf",
+        }
 
     def test_apply_by_mail_for_unknown_offer_is_404(self) -> None:
         from aelyn_api.deps import get_application_writer

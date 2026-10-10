@@ -381,7 +381,11 @@ uv run --package aelyn-career pytest career-agent/tests -q
 - **Carrière** : recherche France Travail (mots-clés, département, type de contrat),
   structuration LLM avec cache par ID d'offre, pipeline de scoring (BM25 + cosinus),
   ce dernier n'est **pas encore branché sur le chat en direct** (trop lent sans cache sur
-  de nouvelles offres), utilisable via les scripts manuels seulement.
+  de nouvelles offres), utilisable via les scripts manuels seulement. Chaque candidature
+  envoyée par mail (`apply-by-mail`) sauvegarde aussi, automatiquement, un dossier local
+  dédié (CV + lettre de motivation en Word **et** PDF, description de l'offre) sous
+  `APPLICATIONS_EXPORT_DIR` (`.env`, défaut `~/.aelyn/candidatures/`) ; jamais fatal si
+  l'écriture échoue, l'envoi du mail reste la source de vérité.
 - **Conversation** : routage rapide (regex) + LLM en repli, conversation libre, lecture
   arrière (« lis le premier »), résolution de référence par position ou mot-clé, escalade
   automatique vers un modèle plus lourd si disponible localement.

@@ -13,12 +13,20 @@ la route HTTP, inatteignable depuis le chat/la voix.
 
 from __future__ import annotations
 
+import logging
+
 from aelyn.core.config import settings
 from aelyn.core.llm import LLMError
+from aelyn_career.application_folder import (
+    ApplicationFolderError,
+    save_application_folder,
+)
 from aelyn_career.application_writer import ApplicationWriter, offer_text
 from aelyn_career.applications import ApplicationsStore
 from aelyn_career.pdf_export import cover_letter_to_pdf_bytes, cv_to_pdf_bytes
 from aelyn_email.client import send_mail_with_attachments
+
+logger = logging.getLogger(__name__)
 
 
 class ApplyByMailError(RuntimeError):
@@ -81,6 +89,17 @@ def send_application_by_mail(
         )
     except Exception as exc:
         raise ApplyByMailError(f"Envoi du mail impossible : {exc}") from exc
+
+    # Dossier local (CV + LM en Word ET PDF, description de l'offre) : en
+    # plus du mail, jamais à sa place (un mail peut être archivé/perdu,
+    # cf. docstring du module). Réutilise le MÊME cv/lettre déjà polis
+    # pour ne pas payer une deuxième fois le LLM. Jamais fatal : un
+    # disque plein ou un chemin invalide dans APPLICATIONS_EXPORT_DIR ne
+    # doit pas faire échouer un envoi déjà réussi.
+    try:
+        save_application_folder(writer, offre, cv=cv, lettre=lettre)
+    except ApplicationFolderError:
+        logger.exception("Dossier de candidature local non sauvegardé pour %s", titre)
 
     # Suivi de candidature (fiche "où en sont mes candidatures ?") : le
     # Journal note déjà que l'envoi a eu lieu, mais jamais sous une forme

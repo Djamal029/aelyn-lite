@@ -97,6 +97,21 @@ def _period_signature(period: str) -> tuple[tuple[int, ...], tuple[int, ...]]:
     return years, months
 
 
+def _period_with_duration(meta: dict, fallback: str = "") -> str:
+    """Période affichée sur le CV, avec la durée réelle entre parenthèses
+    quand le profil la connaît (ex. "4 mois"). La durée n'est JAMAIS
+    recalculée depuis le texte libre de `period` (ex. "End of Jun 2025 -
+    Middle August" ne couvre pas un mois civil entier : un calcul naïf par
+    noms de mois donnerait 3 mois au lieu des 1,5 mois réels) ; elle vient
+    exclusivement du champ `duration` du profil, renseigné une fois pour
+    toutes avec la durée vraie."""
+    period = meta.get("period", fallback)
+    duration = meta.get("duration")
+    if duration and period:
+        return f"{period} ({duration})"
+    return period
+
+
 def _experience_identity(meta: dict) -> tuple[str, str, str]:
     return (
         _fold(meta.get("company", "")),
@@ -360,7 +375,7 @@ class ApplicationWriter:
                     # le champ), qui s'affiche ensuite en double une fois
                     # que le code ajoute son propre "chez {entreprise}".
                     entreprise=meta.get("company", exp.entreprise),
-                    periode=meta.get("period", exp.periode),
+                    periode=_period_with_duration(meta, exp.periode),
                     puces=puces[:3],
                 )
             )
@@ -379,7 +394,7 @@ class ApplicationWriter:
                     CVExperience(
                         role=meta.get("role", ""),
                         entreprise=meta.get("company", ""),
-                        periode=meta.get("period", ""),
+                        periode=_period_with_duration(meta),
                         puces=self._fallback_experience_bullets(meta),
                     )
                 )
@@ -593,6 +608,27 @@ class ApplicationWriter:
             if any(_fold(title) == item or _fold(title) in item for item in normalized_proposals)
         ]
         return list(dict.fromkeys(selected or real_titles))[:3]
+
+    def _certification_urls(self, titles: list[str]) -> dict[str, str]:
+        """URL de vérification pour chaque titre de `titles`, uniquement
+        quand profil.json en connaît une explicitement (clé `url`, jamais
+        devinée depuis l'ID de credential : les URLs Coursera suivent des
+        formats différents selon le certificat, pas un format unique
+        déductible, cf. corrections de liens faites en session)."""
+        profile_certs = self.profil_manager.profil.get("certifications", {})
+        by_title = {
+            _fold(_single_line(cert.get("title"))): cert.get("url")
+            for source in ("website", "linkedin")
+            for cert in profile_certs.get(source, [])
+            if isinstance(cert, dict)
+            and _single_line(cert.get("title"))
+            and cert.get("url")
+        }
+        return {
+            title: by_title[_fold(title)]
+            for title in titles
+            if _fold(title) in by_title
+        }
 
     def _real_languages(self) -> list[str]:
         return [
@@ -872,13 +908,15 @@ class ApplicationWriter:
 
     def draft_cv(self, offer_text: str) -> CVContent:
         selection = self._select_application_items(offer_text)
+        certifications = self._profile_certifications_for_cv(selection)
         return CVContent(
             profil=self._real_cv_summary(offer_text),
             experiences=self._profile_experiences_for_cv(offer_text, selection),
             projets=self._profile_projects_for_cv(selection),
             competences=self._profile_competences_for_cv(selection),
             formation=self._real_formation(),
-            certifications=self._profile_certifications_for_cv(selection),
+            certifications=certifications,
+            certification_urls=self._certification_urls(certifications),
             langues=self._real_languages(),
             centres_interet=self._real_interests(),
         )
