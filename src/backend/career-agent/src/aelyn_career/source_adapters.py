@@ -9,6 +9,7 @@ avec des environnements partiellement configurés.
 from __future__ import annotations
 
 import os
+import re
 from typing import Any
 
 import requests
@@ -278,6 +279,108 @@ class ArbeitnowAdapter(BaseSourceAdapter):
         } for idx, job in enumerate(jobs)]
 
 
+def _strip_html(html: str | None) -> str | None:
+    """`jobDescription` (WorkdayAdapter) arrive en HTML (`<p>`, `<li>`...) :
+    retiré pour matcher le format texte brut attendu par le pipeline de
+    scoring (BM25/embeddings) et par l'affichage, comme toutes les autres
+    sources. Pas de dépendance HTML parser pour un besoin aussi simple
+    (une poignée de balises connues). Chaque frontière de bloc (ouvrante
+    OU fermante : p/li/ul/ol/div/br) devient un saut de ligne, puis les
+    lignes vides issues de bordures adjacentes (ex. `</p><p>`) sont
+    éliminées en filtrant après `strip()` plutôt qu'en essayant de
+    deviner une regex de collapse correcte pour tous les cas."""
+    if not html:
+        return None
+    text = re.sub(r"</?(p|li|ul|ol|div|br)[^>]*>", "\n", html)
+    text = re.sub(r"<[^>]+>", "", text)
+    lines = [line.strip() for line in text.split("\n")]
+    return "\n".join(line for line in lines if line) or None
+
+
+def _parse_workday_sites(raw: str) -> list[tuple[str, str, str]]:
+    """`"tenant:wdN:site,tenant2:wdN2:site2"` -> `[(tenant, wdN, site), ...]`,
+    silencieusement ignore une entrée mal formée plutôt que de faire
+    planter toute la recherche pour une faute de frappe dans `.env`."""
+    sites: list[tuple[str, str, str]] = []
+    for entry in raw.split(","):
+        parts = [p.strip() for p in entry.split(":")]
+        if len(parts) == 3 and all(parts):
+            sites.append((parts[0], parts[1], parts[2]))
+    return sites
+
+
+class WorkdayAdapter(BaseSourceAdapter):
+    """De nombreux grands groupes (pharma notamment : AstraZeneca, Ipsen)
+    hébergent leur site carrières sur Workday, dont le frontend interroge
+    une API JSON non documentée mais publique et sans authentification
+    (confirmé en direct : `POST /wday/cxs/{tenant}/{site}/jobs`, puis
+    `GET` sur le même chemin + `externalPath` pour le détail d'une offre,
+    y compris `jobDescription`). Contrairement aux agrégateurs généralistes
+    ci-dessus, Workday est PAR ENTREPRISE : la liste des tenants à
+    interroger vient de `WORKDAY_CAREERS_SITES` (`.env`), vide par défaut
+    (aucune entreprise supposée a priori)."""
+
+    name = "workday"
+    # Description complète récupérée par une requête GET EN PLUS par
+    # offre (le résultat de recherche n'en contient pas) : bornée au
+    # nombre réellement conservé par offre de recherche demandée
+    # (`limit` du générique `BaseSourceAdapter.search`), jamais toutes
+    # les offres d'un tenant.
+    _MAX_DETAIL_FETCHES_PER_SITE = 10
+
+    def search(self, keywords: str | None = None, contract_type: str | None = None, limit: int = 10) -> list[dict]:
+        sites = _parse_workday_sites(os.getenv("WORKDAY_CAREERS_SITES", ""))
+        if not sites or not keywords:
+            return []
+        results: list[dict] = []
+        for tenant, wd_version, site in sites:
+            results.extend(self._search_site(tenant, wd_version, site, keywords, limit))
+        return results[:limit]
+
+    def _search_site(
+        self, tenant: str, wd_version: str, site: str, keywords: str, limit: int
+    ) -> list[dict]:
+        base = f"https://{tenant}.{wd_version}.myworkdayjobs.com"
+        cxs = f"{base}/wday/cxs/{tenant}/{site}"
+        try:
+            payload = {
+                "appliedFacets": {}, "limit": limit, "offset": 0,
+                "searchText": keywords,
+            }
+            response = requests.post(f"{cxs}/jobs", json=payload, timeout=15)
+            response.raise_for_status()
+            postings = (response.json() or {}).get("jobPostings", [])[:limit]
+        except Exception:
+            return []
+
+        offers = []
+        for idx, posting in enumerate(postings):
+            external_path = posting.get("externalPath") or ""
+            url = f"{base}/{site}{external_path}" if external_path else None
+            description = None
+            if idx < self._MAX_DETAIL_FETCHES_PER_SITE and external_path:
+                try:
+                    detail = requests.get(f"{cxs}{external_path}", timeout=15)
+                    detail.raise_for_status()
+                    posting_info = (detail.json() or {}).get("jobPostingInfo", {})
+                    description = _strip_html(posting_info.get("jobDescription"))
+                except Exception:
+                    description = None
+            offers.append({
+                "id": f"workday:{tenant}:{external_path or idx}",
+                "source": "workday",
+                "title": posting.get("title"),
+                "company": tenant,
+                "location": posting.get("locationsText"),
+                "contract_type": posting.get("timeType") or "UNKNOWN",
+                "description": description,
+                "url": url,
+                "dateCreation": posting.get("postedOn"),
+                "application": {"url": url, "method": "site"},
+            })
+        return offers
+
+
 def available_source_adapters() -> list[BaseSourceAdapter]:
     adapters: list[BaseSourceAdapter] = [
         JoobleAdapter(),
@@ -287,5 +390,6 @@ def available_source_adapters() -> list[BaseSourceAdapter]:
         RemoteOKAdapter(),
         RemoteSourceAdapter(),
         ArbeitnowAdapter(),
+        WorkdayAdapter(),
     ]
     return adapters
