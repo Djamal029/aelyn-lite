@@ -409,6 +409,47 @@ def test_cover_letter_and_refinement_use_only_profile_and_offer_facts(monkeypatc
     writer.llm.text.assert_not_called()
 
 
+def test_cover_letter_excludes_english_highlights(monkeypatch):
+    """Garde-fou vérifié en direct : `highlights` de la fixture est en
+    anglais pour Centre MURAZ (comme profil.json avant sa traduction),
+    jamais mélangé à une lettre en français."""
+    monkeypatch.setattr(settings, "application_selection_mode", "keywords")
+    writer = make_writer()
+    from aelyn_career.application_writer import offer_text
+
+    offer = offer_text({
+        "intitule": "Stage épidémiologie",
+        "entreprise": {"nom": "Centre Recherche"},
+        "description": "paludisme, modèles mixtes Poisson, santé publique",
+    })
+    with patch.object(writer, "contact_header", return_value=""):
+        letter = writer.draft_cover_letter(offer)
+
+    assert "Evaluated public health interventions" not in letter
+    assert "Applied Poisson" not in letter
+    assert "Performed exploratory multivariate analyses" not in letter
+
+
+def test_cover_letter_adds_a_french_highlight_as_an_extra_verified_fact(monkeypatch):
+    monkeypatch.setattr(settings, "application_selection_mode", "keywords")
+    profile = make_profile()
+    profile["profile"]["experience"][3]["highlights"] = [
+        "Dirigé l'évaluation statistique des interventions de santé publique."
+    ]
+    writer = ApplicationWriter(ProfilManager(profile), llm=Mock(), llm_heavy=Mock())
+    from aelyn_career.application_writer import offer_text
+
+    offer = offer_text({
+        "intitule": "Stage épidémiologie",
+        "entreprise": {"nom": "Centre Recherche"},
+        "description": "paludisme, modèles mixtes Poisson, santé publique",
+    })
+    with patch.object(writer, "contact_header", return_value=""):
+        letter = writer.draft_cover_letter(offer)
+
+    assert "Dirigé l'évaluation statistique des interventions" in letter
+
+
 def test_profile_validation_rejects_missing_location_before_profile_is_saved():
     profile = make_profile()
     del profile["profile"]["experience"][0]["location"]

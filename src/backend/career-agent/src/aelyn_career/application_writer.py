@@ -1147,9 +1147,26 @@ class ApplicationWriter:
             paragraphs.append(intro + ".")
             if description:
                 paragraphs.append(description)
-            # `highlights` (quand présent) est en anglais dans profil.json
-            # pour certaines expériences : jamais mélangé à une lettre en
-            # français, `description` suffit toujours comme fait source.
+            # `highlights` est souvent plus précis/technique que la phrase
+            # générique de `description` (ex. méthodologie exacte plutôt
+            # qu'un résumé) : une phrase de plus, toujours un fait vérifié
+            # du même profil. `_looks_french` filtre les highlights encore
+            # en anglais (profil pas encore traduit pour une expérience
+            # donnée) - jamais mélangé à une lettre en français, même
+            # garde-fou que pour les puces de CV
+            # (`_fallback_experience_bullets`).
+            highlights = [
+                _single_line(item) for item in meta.get("highlights", [])
+                if isinstance(item, str) and self._looks_french(_single_line(item))
+            ]
+            seen_in_description = description or ""
+            new_highlights = (
+                item for item in highlights if item and item not in seen_in_description
+            )
+            extra_fact = next(new_highlights, None)
+            if extra_fact:
+                ends_with_punct = extra_fact.endswith((".", "!", "?"))
+                paragraphs.append(extra_fact if ends_with_punct else f"{extra_fact}.")
 
         _, _, skills, _ = self._selection_records()
         chosen_skills = [
