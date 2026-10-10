@@ -360,6 +360,12 @@ Règles strictes :
   technique/propre déjà présent.
 - Même nombre de puces en sortie qu'en entrée, dans le même ordre.
 - Phrases concises (une ligne), en français.
+- Un résultat d'un modèle statistique observationnel (régression,
+  classification, test d'hypothèse...) ne prouve jamais une relation de
+  cause à effet : jamais de vocabulaire causal ("facteurs déterminants",
+  "explique", "entraîne") pour décrire ce qu'un tel modèle a identifié,
+  seulement un vocabulaire associatif ("facteurs associés à", "liés à").
+  Ne reformule PAS un vocabulaire déjà associatif en vocabulaire causal.
 
 Réponds avec une puce reformulée par ligne, exactement autant de lignes
 que de puces fournies, dans le même ordre. Pas de JSON, pas de
@@ -383,6 +389,11 @@ Règles strictes :
   formule de politesse finale) mais peux fusionner des phrases courtes et
   mécaniques en une prose plus naturelle et plus substantielle.
 - Reste en français, registre professionnel, pas de familiarité.
+- Un résultat d'un modèle statistique observationnel ne prouve jamais une
+  relation de cause à effet : jamais de vocabulaire causal ("facteurs
+  déterminants", "explique", "entraîne") pour le décrire, seulement un
+  vocabulaire associatif ("facteurs associés à", "liés à"). Ne reformule
+  PAS un vocabulaire déjà associatif en vocabulaire causal.
 
 Réponds uniquement avec le texte reformulé de la lettre, rien d'autre
 (pas de commentaire, pas d'introduction)."""
