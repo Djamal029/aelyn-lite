@@ -209,6 +209,16 @@ class Settings(BaseModel):
     # 3h par défaut : assez rare pour ne pas spammer le flux Activité ni
     # saturer l'API France Travail, assez fréquent pour rester utile.
     proactive_search_interval_minutes: int = 180
+    # Au-delà du simple journal : prépare aussi, SANS LLM (déterministe,
+    # rapide, jamais d'hallucination), un dossier de candidature complet
+    # (cf. `application_folder.save_application_folder`) pour chaque
+    # offre nouvellement repérée. Bascule SÉPARÉE de
+    # `proactive_search_enabled`, désactivée par défaut : quelqu'un qui a
+    # déjà activé la recherche proactive pour le simple journal ne s'est
+    # pas forcément inscrit à de l'écriture automatique de fichiers sur
+    # son disque, un changement de comportement plus conséquent qu'une
+    # ligne de log.
+    proactive_search_auto_draft: bool = False
     # Dossier où chaque candidature (CV + LM, Word et PDF, description de
     # l'offre) est sauvegardée dans un sous-dossier dédié, en plus de
     # l'envoi par mail. `None` = dossier par défaut sous `data_dir`
@@ -318,6 +328,7 @@ def get_settings() -> Settings:
         proactive_search_interval_minutes=_env_int(
             "PROACTIVE_SEARCH_INTERVAL_MINUTES", 180
         ),
+        proactive_search_auto_draft=_env_bool("PROACTIVE_SEARCH_AUTO_DRAFT", False),
         applications_export_dir=(
             Path(os.environ["APPLICATIONS_EXPORT_DIR"])
             if os.getenv("APPLICATIONS_EXPORT_DIR")

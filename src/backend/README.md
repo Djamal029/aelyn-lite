@@ -385,7 +385,10 @@ uv run --package aelyn-career pytest career-agent/tests -q
   envoyée par mail (`apply-by-mail`) sauvegarde aussi, automatiquement, un dossier local
   dédié (CV + lettre de motivation en Word **et** PDF, description de l'offre) sous
   `APPLICATIONS_EXPORT_DIR` (`.env`, défaut `~/.aelyn/candidatures/`) ; jamais fatal si
-  l'écriture échoue, l'envoi du mail reste la source de vérité.
+  l'écriture échoue, l'envoi du mail reste la source de vérité. La recherche proactive
+  (ci-dessous) peut aussi préparer ce dossier toute seule pour chaque offre
+  nouvellement repérée (`PROACTIVE_SEARCH_AUTO_DRAFT`, désactivé par défaut), sans LLM
+  (déterministe, jamais d'hallucination en arrière-plan sans supervision).
 - **Conversation** : routage rapide (regex) + LLM en repli, conversation libre, lecture
   arrière (« lis le premier »), résolution de référence par position ou mot-clé, escalade
   automatique vers un modèle plus lourd si disponible localement.

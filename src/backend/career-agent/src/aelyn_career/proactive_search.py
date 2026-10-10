@@ -15,6 +15,11 @@ import logging
 from aelyn.core.config import settings
 from aelyn.core.journal import ActionStatus, Journal
 from aelyn.core.seen_offers import SeenOffers
+from aelyn_career.application_folder import (
+    ApplicationFolderError,
+    save_application_folder,
+)
+from aelyn_career.application_writer import ApplicationWriter
 from aelyn_career.pipeline import find_best_matches
 
 logger = logging.getLogger(__name__)
@@ -38,12 +43,17 @@ def _offer_label(offre: dict) -> tuple[str, str | None]:
 
 
 def run_proactive_search_once(
-    *, seen_offers: SeenOffers | None = None, journal: Journal | None = None
+    *,
+    seen_offers: SeenOffers | None = None,
+    journal: Journal | None = None,
+    writer: ApplicationWriter | None = None,
 ) -> int:
     """Une itération : cherche, filtre les offres jamais vues, journalise
-    chacune. Renvoie le nombre de nouvelles offres (0 en cas d'erreur
-    réseau/LLM, jamais levée plus haut : un cycle raté ne doit pas
-    arrêter la boucle de fond, le prochain cycle réessaiera)."""
+    chacune (et prépare un dossier de candidature si
+    `PROACTIVE_SEARCH_AUTO_DRAFT`, cf. docstring du module). Renvoie le
+    nombre de nouvelles offres (0 en cas d'erreur réseau/LLM, jamais
+    levée plus haut : un cycle raté ne doit pas arrêter la boucle de
+    fond, le prochain cycle réessaiera)."""
     try:
         offres = find_best_matches(top_n=10, max_offers=20)
     except Exception:
@@ -64,13 +74,34 @@ def run_proactive_search_once(
         resume = f"Nouvelle offre repérée en veille : {titre}"
         if nom_entreprise:
             resume += f" chez {nom_entreprise}"
+
+        folder = None
+        if settings.proactive_search_auto_draft:
+            # Jamais la version polie LLM ici : `draft_cv`/
+            # `draft_cover_letter` sont déterministes (zéro hallucination,
+            # zéro appel réseau/LLM), seuls sûrs pour tourner sans
+            # supervision en arrière-plan sur un nombre d'offres variable.
+            try:
+                active_writer = writer or ApplicationWriter()
+                folder = save_application_folder(active_writer, offre)
+                resume += " - dossier de candidature préparé"
+            except ApplicationFolderError:
+                logger.exception(
+                    "Dossier de candidature non préparé pour %s (veille proactive)",
+                    titre,
+                )
+
         journal.record(
             agent=_AGENT_NAME,
             action=_ACTION_NAME,
             summary=resume,
             status=ActionStatus.EXECUTED,
             target=str(offre.get("id")),
-            payload={"score": offre.get("score"), "url": offre.get("url")},
+            payload={
+                "score": offre.get("score"),
+                "url": offre.get("url"),
+                "application_folder": str(folder) if folder else None,
+            },
         )
     return len(nouvelles)
 
