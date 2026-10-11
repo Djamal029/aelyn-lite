@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { EmptyState } from "../components/ui/EmptyState";
 import { LogPanel } from "../components/ui/LogPanel";
 import { LITE_MODE } from "../lib/liteMode";
 import { useActivityEntries } from "../lib/useActivityEntries";
@@ -59,12 +60,14 @@ export function Activity() {
       <div className={styles.logWrap}>
         {filtered.length > 0 ? (
           <LogPanel entries={filtered} />
+        ) : entries.length === 0 ? (
+          <EmptyState
+            icon="journal"
+            title="Aucune activité pour le moment"
+            description="Le journal se remplira avec vos premières actions."
+          />
         ) : (
-          <div className={styles.empty}>
-            {entries.length === 0
-              ? "Aucune activité pour le moment. Le journal se remplira avec vos premières actions."
-              : "Aucune entrée ne correspond à ce filtre."}
-          </div>
+          <EmptyState icon="search" title="Aucune entrée ne correspond à ce filtre" compact />
         )}
       </div>
     </div>

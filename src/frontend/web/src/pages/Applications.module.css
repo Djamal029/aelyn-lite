@@ -134,13 +134,3 @@
   color: var(--state-red);
   background: var(--bg-panel-raised);
 }
-
-.empty {
-  display: grid;
-  min-height: 180px;
-  place-items: center;
-  padding: var(--sp-5);
-  color: var(--text-muted);
-  font-size: var(--fs-sm);
-  text-align: center;
-}

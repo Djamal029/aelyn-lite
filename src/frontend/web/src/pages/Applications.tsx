@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Badge, type BadgeKind } from "../components/ui/Badge";
+import { EmptyState } from "../components/ui/EmptyState";
 import { formatTimestamp } from "../lib/time";
 import { useApplications } from "../lib/useApplications";
 import type { ApplicationStatus } from "../lib/api";
@@ -48,12 +49,13 @@ export function Applications() {
 
       <div className={styles.tableWrap}>
         {loading ? (
-          <div className={styles.empty}>Chargement…</div>
+          <EmptyState icon="applications" title="Chargement…" compact />
         ) : applications.length === 0 ? (
-          <div className={styles.empty}>
-            Aucune candidature suivie pour le moment. Chaque envoi par mail ("postule par
-            mail chez X") apparaîtra ici automatiquement.
-          </div>
+          <EmptyState
+            icon="applications"
+            title="Aucune candidature suivie pour le moment"
+            description={'Chaque envoi par mail ("postule par mail chez X") apparaîtra ici automatiquement.'}
+          />
         ) : (
           <table className={styles.table}>
             <thead>

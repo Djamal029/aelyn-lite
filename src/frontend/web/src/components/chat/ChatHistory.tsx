@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ChatMessage as ChatMessageT } from "../../types";
+import { EmptyState } from "../ui/EmptyState";
 import { ChatMessage } from "./ChatMessage";
 import styles from "./ChatHistory.module.css";
 
@@ -115,7 +116,15 @@ export function ChatHistory({
           </div>
         ) : null}
         {groups.length === 0 ? (
-          query.trim() ? <div className={styles.empty}>Aucun résultat pour « {query} ».</div> : null
+          query.trim() ? (
+            <EmptyState icon="search" title={`Aucun résultat pour « ${query} »`} compact />
+          ) : (
+            <EmptyState
+              icon="chat"
+              title="Aucune conversation pour l'instant"
+              description="Écrivez un message ci-dessous, ou essayez une commande depuis la page Commandes."
+            />
+          )
         ) : (
           groups.map(([label, msgs]) => (
             <div key={label}>

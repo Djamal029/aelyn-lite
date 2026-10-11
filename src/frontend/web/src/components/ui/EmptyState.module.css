@@ -1,0 +1,44 @@
+.wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-2);
+  height: 100%;
+  min-height: 220px;
+  padding: var(--sp-5);
+  text-align: center;
+}
+
+.compact {
+  min-height: 120px;
+}
+
+.icon {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-md);
+  background: var(--bg-inset);
+  color: var(--text-disabled);
+  margin-bottom: var(--sp-1);
+}
+
+.icon svg {
+  width: 20px;
+  height: 20px;
+}
+
+.title {
+  font-size: var(--fs-sm);
+  color: var(--text-secondary);
+  font-weight: 500;
+  max-width: 420px;
+}
+
+.description {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  max-width: 380px;
+}

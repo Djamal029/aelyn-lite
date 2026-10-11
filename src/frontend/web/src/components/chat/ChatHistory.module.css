@@ -64,12 +64,6 @@
   background: var(--border-subtle);
 }
 
-.empty {
-  padding: var(--sp-4);
-  color: var(--text-muted);
-  font-size: var(--fs-sm);
-}
-
 .loadOlder {
   display: flex;
   justify-content: center;
