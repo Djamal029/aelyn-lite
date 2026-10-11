@@ -7,6 +7,7 @@ relativement pertinentes par rapport à un profil ou à un mot-clé.
 
 from __future__ import annotations
 
+import logging
 import os
 import re
 from collections.abc import Iterable
@@ -15,6 +16,8 @@ from aelyn_career.france_travail.offers import FTOffers
 from aelyn_career.job_sources import deduplicate_offers, enrich_offer, normalize_contract_type, offer_identity_hash
 from aelyn_career.offer_cache import OfferCache, default_offer_cache_path
 from aelyn_career.source_adapters import available_source_adapters
+
+logger = logging.getLogger(__name__)
 
 
 def _offer_company(offer: dict) -> str:
@@ -67,8 +70,24 @@ class JobSearchService:
         """Retourne une liste d'offres enrichies, dédupliquées, prêtes à être affichées."""
         desired = max(limit, 10)
 
+        # France Travail est optionnelle (cf. README install) : sans
+        # identifiants configurés (ou en cas de panne du service), `connect()`
+        # lève une exception - jamais laissée remonter ici, sinon une
+        # recherche plante ENTIÈREMENT au lieu de se rabattre sur les autres
+        # sources (RemoteOK, Remotive, Arbeitnow, Workday...) qui, elles,
+        # n'ont besoin d'aucune clé. Même philosophie que les adapters de
+        # `source_adapters.py` : une source indisponible renvoie une liste
+        # vide, elle ne fait jamais planter la recherche globale.
+        france_travail_available = True
         if self.offers_agent.access_token is None:
-            self.offers_agent.connect()
+            try:
+                self.offers_agent.connect()
+            except Exception:
+                logger.warning(
+                    "France Travail indisponible (identifiants manquants ou service en panne), "
+                    "recherche limitée aux autres sources."
+                )
+                france_travail_available = False
 
         source_keywords = keywords or next(
             (
@@ -79,11 +98,13 @@ class JobSearchService:
             None,
         )
 
-        raw_offers, _ = self.offers_agent.search_offers(
-            keywords=keywords,
-            contract_type=contract_type,
-            limit=max(desired, 20),
-        )
+        raw_offers: list[dict] = []
+        if france_travail_available:
+            raw_offers, _ = self.offers_agent.search_offers(
+                keywords=keywords,
+                contract_type=contract_type,
+                limit=max(desired, 20),
+            )
 
         enriched: list[dict] = []
         for offer in raw_offers:

@@ -69,8 +69,15 @@ def run_command(
 ) -> tuple[int, list[dict]]:
     if command == "chercher_offres":
         agent = offers_agent or FTOffers()
-        if agent.access_token is None:
-            agent.connect()
+        # Pas de connexion forcée ici : France Travail est optionnelle (cf.
+        # README), et `find_best_matches`/`JobSearchService` gèrent déjà eux-
+        # mêmes une connexion absente ou en échec en se rabattant sur les
+        # autres sources (RemoteOK, Remotive, Arbeitnow, Workday...) plutôt
+        # que de planter. Appeler `connect()` ici, sans filet, faisait
+        # échouer "cherche des offres" EN ENTIER (y compris les sources sans
+        # clé API) dès que FRANCE_TRAVAIL_CLIENT_ID/SECRET n'étaient pas
+        # renseignés - exactement le cas d'une installation aelyn-lite
+        # fraîche n'ayant configuré aucun identifiant.
 
         # `find_best_matches` (pas `agent.search_offers` seul) : la
         # recherche brute ne scorait jamais rien contre le profil malgré
