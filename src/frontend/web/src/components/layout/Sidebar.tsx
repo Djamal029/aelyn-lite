@@ -12,6 +12,7 @@ const ALL_NAV_ITEMS = [
   { path: "/commandes", label: "Commandes" },
   { path: "/data", label: "Données" },
   { path: "/activity", label: "Journal" },
+  { path: "/applications", label: "Candidatures" },
   { path: "/system", label: "Système" },
   { path: "/settings", label: "Réglages" },
 ] as const;

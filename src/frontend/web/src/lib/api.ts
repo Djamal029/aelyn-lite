@@ -59,7 +59,7 @@ function describeErrorDetail(detail: unknown, fallback: string): { message: stri
 }
 
 interface RequestOptions {
-  method?: "GET" | "POST" | "PATCH" | "PUT";
+  method?: "GET" | "POST" | "PATCH" | "PUT" | "DELETE";
   body?: unknown;
   token?: string;
   /** Most calls are quick reads (short default timeout so an
@@ -292,6 +292,49 @@ export interface ApplyByMailResult {
 
 export function applyCareerByMail(offerId: string): Promise<ApplyByMailResult> {
   return request(`/career/${offerId}/apply-by-mail`, { method: "POST", timeoutMs: 150_000 });
+}
+
+// ---- Applications (suivi des candidatures) -----------------------------
+
+export type ApplicationStatus = "postule" | "relance" | "entretien" | "refuse" | "accepte";
+
+export interface ApiApplication {
+  offer_id: string;
+  title: string;
+  company: string | null;
+  status: ApplicationStatus;
+  status_label: string;
+  applied_at: string;
+  updated_at: string;
+  notes: string | null;
+}
+
+/** GET /applications : le vrai suivi (aelyn_career.applications), la
+ * même table que "où en sont mes candidatures ?" en chat/voix. Pas de
+ * fallback mock : sans backend joignable, la page affiche simplement
+ * "indisponible" plutôt que des candidatures inventées. */
+export function getApplications(status?: ApplicationStatus): Promise<ApiApplication[]> {
+  return request(status ? `/applications?status=${status}` : "/applications");
+}
+
+/** PATCH /applications/{offer_id} : modifie le statut et/ou ajoute une
+ * note (jamais protégé par passkey, cf. le routeur backend : marquer une
+ * candidature "en entretien" est un geste d'usage courant). Les deux
+ * champs sont optionnels, omettre `status` laisse le statut en place et
+ * n'ajoute que la note. */
+export function updateApplication(
+  offerId: string,
+  patch: { status?: ApplicationStatus; note?: string }
+): Promise<ApiApplication> {
+  return request(`/applications/${offerId}`, { method: "PATCH", body: patch });
+}
+
+/** DELETE /applications/{offer_id} : retire une candidature trackée par
+ * erreur (ex. une offre ouverte par curiosité puis "postule" lancé sans
+ * le vouloir vraiment). Ne touche jamais à un mail déjà envoyé, juste au
+ * suivi local. */
+export function deleteApplication(offerId: string): Promise<void> {
+  return request(`/applications/${offerId}`, { method: "DELETE" });
 }
 
 // ---- Media (TV) -------------------------------------------------------

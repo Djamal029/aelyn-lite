@@ -799,3 +799,29 @@ class TestApplications:
             app.dependency_overrides.clear()
 
         assert response.status_code == 404
+
+    def test_delete_application_removes_a_tracked_entry(self, tmp_path) -> None:
+        from aelyn_api.deps import get_applications_store
+
+        store = self._store(tmp_path)
+        store.record(offer_id="1", title="Data Scientist", company="EDF")
+        app.dependency_overrides[get_applications_store] = lambda: store
+        try:
+            response = client.delete("/applications/1")
+        finally:
+            app.dependency_overrides.clear()
+
+        assert response.status_code == 204
+        assert store.get("1") is None
+
+    def test_delete_application_for_unknown_offer_is_404(self, tmp_path) -> None:
+        from aelyn_api.deps import get_applications_store
+
+        store = self._store(tmp_path)
+        app.dependency_overrides[get_applications_store] = lambda: store
+        try:
+            response = client.delete("/applications/unknown")
+        finally:
+            app.dependency_overrides.clear()
+
+        assert response.status_code == 404

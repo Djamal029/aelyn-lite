@@ -86,3 +86,17 @@ def update_application(
     # ici, mais le type reste `Application | None` côté store.
     assert updated is not None
     return _to_out(updated)
+
+
+@router.delete("/{offer_id}", status_code=204)
+def delete_application(
+    offer_id: str,
+    store: ApplicationsStore = Depends(get_applications_store),
+) -> None:
+    """Retire une candidature du suivi (ex. une candidature trackée par
+    erreur, cf. `ApplicationsStore.delete`). Même raisonnement que PATCH
+    ci-dessus pour l'absence de protection par passkey : retirer une
+    ligne de suivi est un geste d'usage courant, pas une modification de
+    configuration/secret."""
+    if not store.delete(offer_id):
+        raise HTTPException(404, f"Candidature {offer_id} inconnue.")

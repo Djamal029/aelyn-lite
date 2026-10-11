@@ -7,6 +7,7 @@ import { Assistant } from "./pages/Assistant";
 import { Commands } from "./pages/Commands";
 import { Data } from "./pages/Data";
 import { Activity } from "./pages/Activity";
+import { Applications } from "./pages/Applications";
 import { System } from "./pages/System";
 import { Settings } from "./pages/Settings";
 import { LITE_MODE } from "./lib/liteMode";
@@ -26,6 +27,7 @@ export default function App() {
           <Route path="commandes" element={<Commands />} />
           <Route path="data" element={<Data />} />
           <Route path="activity" element={<Activity />} />
+          <Route path="applications" element={<Applications />} />
           <Route path="system" element={<System />} />
           <Route path="settings" element={<Settings />} />
         </Route>
