@@ -2,20 +2,21 @@ import { NavLink } from "react-router-dom";
 import { cameras, securityEvents } from "../../mocks";
 import { StatusDot } from "../ui/StatusDot";
 import { LITE_MODE } from "../../lib/liteMode";
+import { NavIcon, type NavIconKind } from "./NavIcon";
 import styles from "./Sidebar.module.css";
 
-const ALL_NAV_ITEMS = [
-  { path: "/", label: "Accueil" },
-  { path: "/cameras", label: "Caméras" },
-  { path: "/security", label: "Sécurité" },
-  { path: "/assistant", label: "Assistant" },
-  { path: "/commandes", label: "Commandes" },
-  { path: "/data", label: "Données" },
-  { path: "/activity", label: "Journal" },
-  { path: "/applications", label: "Candidatures" },
-  { path: "/system", label: "Système" },
-  { path: "/settings", label: "Réglages" },
-] as const;
+const ALL_NAV_ITEMS: { path: string; label: string; icon: NavIconKind }[] = [
+  { path: "/", label: "Accueil", icon: "home" },
+  { path: "/cameras", label: "Caméras", icon: "cameras" },
+  { path: "/security", label: "Sécurité", icon: "security" },
+  { path: "/assistant", label: "Assistant", icon: "assistant" },
+  { path: "/commandes", label: "Commandes", icon: "commands" },
+  { path: "/data", label: "Données", icon: "data" },
+  { path: "/activity", label: "Journal", icon: "activity" },
+  { path: "/applications", label: "Candidatures", icon: "applications" },
+  { path: "/system", label: "Système", icon: "system" },
+  { path: "/settings", label: "Réglages", icon: "settings" },
+];
 
 // Pas de matériel caméra en version lite : lien retiré plutôt que menant
 // vers une page vide/webcam de démo.
@@ -48,7 +49,12 @@ export function Sidebar({ open, onNavigate }: SidebarProps) {
           onClick={onNavigate}
           className={({ isActive }) => [styles.item, isActive ? styles.itemActive : ""].join(" ")}
         >
-          <span className={styles.label}>{item.label}</span>
+          <span className={styles.itemMain}>
+            <span className={styles.icon}>
+              <NavIcon kind={item.icon} />
+            </span>
+            <span className={styles.label}>{item.label}</span>
+          </span>
           {item.path === "/security" && recentCritical > 0 ? (
             <span className={styles.indicator}>
               <StatusDot kind="warning" />

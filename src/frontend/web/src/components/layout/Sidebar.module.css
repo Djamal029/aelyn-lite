@@ -71,8 +71,41 @@
   background: var(--bg-hover);
 }
 
+.itemMain {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.icon {
+  display: flex;
+  flex-shrink: 0;
+  color: var(--text-muted);
+  opacity: 0.85;
+  transition: color 0.12s ease, opacity 0.12s ease;
+}
+
+.icon svg {
+  width: 16px;
+  height: 16px;
+}
+
+.itemActive .icon {
+  color: var(--state-blue);
+  opacity: 1;
+}
+
+.item:hover .icon {
+  color: var(--text-primary);
+  opacity: 1;
+}
+
 .label {
   text-transform: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .indicator {
