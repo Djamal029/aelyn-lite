@@ -13,20 +13,24 @@ consultée sur le téléphone, par exemple, doit quand même être détectée.
 from __future__ import annotations
 
 import logging
+import re
+import unicodedata
 from dataclasses import dataclass
 from enum import StrEnum
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from aelyn.core.journal import ActionStatus, Journal
 from aelyn.core.llm import LLMClient, LLMError
 from aelyn_career.applications import Application, ApplicationsStore, ApplicationStatus
-from aelyn_career.prompts import SYSTEM_APPLICATION_REPLY
+from aelyn_career.prompts import SYSTEM_APPLICATION_CONFIRMATION, SYSTEM_APPLICATION_REPLY
 from aelyn_email.models import Mail
 
 logger = logging.getLogger(__name__)
 
 AGENT_NAME = "career"
+_REPLY_ACTION = "reponse_candidature"
+_CONFIRMATION_ACTION = "candidature_detectee"
 
 
 class ReplyOutcome(StrEnum):
@@ -66,21 +70,75 @@ class ApplicationReplyResult:
     status_changed: bool
 
 
+# Mots trop courants pour servir de signal de correspondance à eux seuls
+# (un mot de 4+ lettres partagé par hasard entre deux offres sans rapport
+# ne doit pas déclencher un faux rapprochement).
+_GENERIC_WORDS = {
+    "stage", "stagiaire", "data", "science", "scientist", "analyst",
+    "analyste", "poste", "pour", "avec", "dans", "sous", "chez", "votre",
+    "notre", "equipe", "team", "the", "and", "pour", "une", "des",
+}
+
+
+def _strip_accents(text: str) -> str:
+    decomposed = unicodedata.normalize("NFKD", text)
+    return "".join(c for c in decomposed if not unicodedata.combining(c))
+
+
+def _distinctive_words(text: str, min_len: int = 4) -> set[str]:
+    words = re.findall(r"\w+", _strip_accents(text.lower()))
+    return {w for w in words if len(w) >= min_len and w not in _GENERIC_WORDS}
+
+
+def _find_by_title_overlap(store: ApplicationsStore, title: str, *, min_overlap: int = 3) -> Application | None:
+    """Retrouve une candidature déjà suivie via son INTITULÉ seul, en
+    tolérant les variations d'accentuation/reformulation entre deux
+    extractions LLM du même intitulé (bug réel observé : un intitulé
+    stocké sans accents - "Modelisation..." - ne matchait jamais le même
+    intitulé ré-extrait avec accents - "Modélisation..." - via
+    `find_by_text`, qui exige un match exact mot-à-mot). Un recoupement
+    de plusieurs mots DISTINCTIFS (pas un seul, pour éviter un faux
+    positif sur un mot générique de stage) suffit, sans exiger l'entreprise."""
+    title_words = _distinctive_words(title)
+    if len(title_words) < min_overlap:
+        return None
+    for app in store.list():
+        if len(title_words & _distinctive_words(app.title)) >= min_overlap:
+            return app
+    return None
+
+
 def match_application(
-    store: ApplicationsStore, *, subject: str, sender: str, sender_email: str
+    store: ApplicationsStore, *, subject: str, sender: str, sender_email: str, body: str = ""
 ) -> Application | None:
-    """Associe un mail à une candidature suivie, par mots-clés (titre ou
-    entreprise) dans l'objet ou le nom de l'expéditeur, puis en repli par
-    le domaine de l'expéditeur contre le nom de l'entreprise suivie (ex.
-    "laura.couepel@phosphea.com" -> "Phosphea") : utile quand ni l'objet
-    ni le nom affiché ne mentionnent l'entreprise."""
-    candidate = store.find_by_text(f"{subject} {sender}")
-    if candidate is not None:
-        return candidate
+    """Associe un mail à une candidature suivie. Trois signaux, du plus
+    au moins fiable :
+    1. un mot distinctif du nom d'ENTREPRISE suivi apparaît dans le mail
+       (objet, expéditeur ou corps) - fonctionne même pour un mail
+       AUTO-TRANSFÉRÉ par l'utilisateur lui-même (expéditeur = sa propre
+       adresse, pas celle du recruteur : bug réel observé, le domaine de
+       l'expéditeur était alors inexploitable) ;
+    2. le domaine de l'expéditeur correspond à l'entreprise suivie (ex.
+       "laura.couepel@phosphea.com" -> "Phosphea") ;
+    3. `find_by_text` (correspondance stricte mot-à-mot) en dernier
+       repli, surtout utile pour un objet très court et propre.
+    Le TITRE n'est volontairement jamais utilisé seul : un intitulé de
+    stage générique ("Data Scientist") se retrouve dans trop d'offres
+    sans rapport pour être un signal fiable à lui seul."""
+    haystack = f"{subject} {sender} {sender_email} {body}".lower()
+
+    for app in store.list():
+        company_words = _distinctive_words(app.company or "")
+        if company_words and any(word in haystack for word in company_words):
+            return app
+
     domain = sender_email.rsplit("@", 1)[-1].split(".")[0] if "@" in sender_email else ""
     if len(domain) >= 3:
-        return store.find_by_text(domain)
-    return None
+        candidate = store.find_by_text(domain)
+        if candidate is not None:
+            return candidate
+
+    return store.find_by_text(f"{subject} {sender}")
 
 
 def analyze_reply(llm: LLMClient, mail: Mail) -> ReplyAnalysis | None:
@@ -94,6 +152,62 @@ def analyze_reply(llm: LLMClient, mail: Mail) -> ReplyAnalysis | None:
         )
     except LLMError:
         logger.exception("Analyse de réponse candidature impossible pour %s", mail.uid)
+        return None
+
+
+class ApplicationConfirmation(BaseModel):
+    """Ce que le LLM doit produire pour un mail candidat à une NOUVELLE
+    candidature (par opposition à `ReplyAnalysis`, qui suppose une
+    candidature déjà suivie)."""
+
+    est_confirmation_candidature: bool
+    entreprise: str | None = None
+    intitule_poste: str | None = None
+
+    # Un LLM écrit parfois le mot "null"/"none" en texte plutôt que la
+    # valeur JSON `null` elle-même (observé en direct : un mail de
+    # confirmation qui ne nomme jamais l'employeur réel a produit
+    # `entreprise="null"`, une chaîne non vide donc jamais filtrée par
+    # `if not confirmation.entreprise` plus bas - qui a fini par créer un
+    # doublon de candidature avec une entreprise "null" affichée).
+    @field_validator("entreprise", "intitule_poste", mode="before")
+    @classmethod
+    def _blank_placeholder_to_none(cls, value: str | None) -> str | None:
+        if isinstance(value, str) and value.strip().lower() in {"null", "none", "n/a", ""}:
+            return None
+        return value
+
+
+# Préfiltre bon marché AVANT tout appel LLM : la grande majorité des
+# mails (newsletters, personnel, administratif...) n'ont évidemment rien
+# à voir avec une candidature, les analyser tous coûterait un appel LLM
+# par mail pour rien. Volontairement large (mieux vaut un faux positif
+# ici, éliminé ensuite par le LLM, qu'un vrai accusé de réception raté).
+_CONFIRMATION_KEYWORDS = (
+    "candidature", "application", "postul", "a bien été reçue",
+    "has been received", "was sent to", "application received",
+)
+
+
+def _looks_like_application_confirmation(mail: Mail) -> bool:
+    haystack = f"{mail.subject} {mail.body[:1000]}".lower()
+    return any(keyword in haystack for keyword in _CONFIRMATION_KEYWORDS)
+
+
+def detect_application_confirmation(
+    llm: LLMClient, mail: Mail
+) -> ApplicationConfirmation | None:
+    """`None` si le LLM est indisponible (même logique que
+    `analyze_reply` : jamais laissé interrompre l'examen des autres
+    mails)."""
+    try:
+        return llm.structured(
+            schema=ApplicationConfirmation,
+            system=SYSTEM_APPLICATION_CONFIRMATION,
+            user=mail.for_llm(max_chars=2500),
+        )
+    except LLMError:
+        logger.exception("Détection de confirmation de candidature impossible pour %s", mail.uid)
         return None
 
 
@@ -113,8 +227,92 @@ def _already_processed_uids(journal: Journal) -> set[str]:
     return {
         action.payload["mail_uid"]
         for action in journal.since(hours=_DEDUP_WINDOW_HOURS, agent=AGENT_NAME)
-        if action.action == "reponse_candidature" and "mail_uid" in action.payload
+        if action.action in (_REPLY_ACTION, _CONFIRMATION_ACTION) and "mail_uid" in action.payload
     }
+
+
+def _slugify(*parts: str) -> str:
+    raw = "-".join(p for p in parts if p).lower()
+    slug = re.sub(r"[^a-z0-9]+", "-", raw).strip("-")
+    return (slug or "offre")[:80]
+
+
+def _try_detect_new_application(
+    store: ApplicationsStore, llm: LLMClient, mail: Mail, *, journal: Journal | None
+) -> ApplicationReplyResult | None:
+    """Repli quand `mail` ne matche AUCUNE candidature déjà suivie :
+    peut-être s'agit-il d'une candidature envoyée HORS d'AELYN (portail,
+    plateforme type HelloWork/LinkedIn...) et donc jamais trackée. Un
+    accusé de réception la révèle, cf. `ApplicationConfirmation`.
+    Préfiltre par mots-clés avant tout appel LLM (cf.
+    `_looks_like_application_confirmation`) : la quasi-totalité des mails
+    non matchés n'ont évidemment aucun rapport avec une candidature."""
+    if not _looks_like_application_confirmation(mail):
+        return None
+
+    confirmation = detect_application_confirmation(llm, mail)
+    if confirmation is None:
+        return None  # échec LLM transitoire, jamais marqué vu
+
+    if not confirmation.est_confirmation_candidature or not confirmation.intitule_poste:
+        if journal is not None:
+            journal.record(
+                agent=AGENT_NAME,
+                action=_CONFIRMATION_ACTION,
+                target=None,
+                summary=f"{mail.subject} : non pertinent",
+                status=ActionStatus.EXECUTED,
+                payload={"mail_uid": mail.uid},
+            )
+        return None
+
+    # Peut-être déjà suivie sous un autre offer_id (ex. trackée
+    # manuellement avant ce mail, ou l'entreprise n'est pas nommée dans
+    # CE mail-ci mais l'intitulé recoupe une candidature déjà connue) :
+    # ne jamais créer de doublon. Le recoupement par intitulé seul (donc
+    # SANS exiger l'entreprise) est volontairement vérifié en premier :
+    # une plateforme comme un portail d'école confirme souvent l'envoi
+    # sans jamais nommer l'employeur réel, cf. `_find_by_title_overlap`.
+    existing = _find_by_title_overlap(store, confirmation.intitule_poste)
+    if existing is None and confirmation.entreprise:
+        existing = store.find_by_text(f"{confirmation.entreprise} {confirmation.intitule_poste}")
+    if existing is not None:
+        if journal is not None:
+            journal.record(
+                agent=AGENT_NAME,
+                action=_CONFIRMATION_ACTION,
+                target=existing.company,
+                summary=f"{existing.title} : déjà suivie",
+                status=ActionStatus.EXECUTED,
+                payload={"mail_uid": mail.uid, "offer_id": existing.offer_id},
+            )
+        return None
+
+    title = confirmation.intitule_poste
+    offer_id = _slugify(confirmation.entreprise or "", title)
+    application = store.record(offer_id=offer_id, title=title, company=confirmation.entreprise)
+
+    if journal is not None:
+        cible = f" chez {application.company}" if application.company else ""
+        journal.record(
+            agent=AGENT_NAME,
+            action=_CONFIRMATION_ACTION,
+            target=application.company,
+            summary=f"Nouvelle candidature détectée : {application.title}{cible}",
+            status=ActionStatus.EXECUTED,
+            payload={"mail_uid": mail.uid, "offer_id": application.offer_id},
+        )
+
+    return ApplicationReplyResult(
+        mail=mail,
+        application=application,
+        analysis=ReplyAnalysis(
+            est_reponse_candidature=True,
+            issue=ReplyOutcome.AUTRE,
+            resume="Candidature détectée automatiquement dans les mails (envoyée hors AELYN).",
+        ),
+        status_changed=True,
+    )
 
 
 def check_application_replies(
@@ -141,9 +339,13 @@ def check_application_replies(
             continue
 
         application = match_application(
-            store, subject=mail.subject, sender=mail.sender, sender_email=mail.sender_email
+            store, subject=mail.subject, sender=mail.sender,
+            sender_email=mail.sender_email, body=mail.body,
         )
         if application is None:
+            new_result = _try_detect_new_application(store, llm, mail, journal=journal)
+            if new_result is not None:
+                results.append(new_result)
             continue
 
         analysis = analyze_reply(llm, mail)

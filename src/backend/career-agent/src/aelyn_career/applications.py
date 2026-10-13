@@ -17,7 +17,7 @@ from datetime import datetime, timezone
 from enum import StrEnum
 from pathlib import Path
 
-from sqlalchemy import String, Text, create_engine, select, text
+from sqlalchemy import String, Text, case, create_engine, select, text
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column
 
 
@@ -220,7 +220,23 @@ class ApplicationsStore:
             stmt = select(ApplicationRow)
             if status is not None:
                 stmt = stmt.where(ApplicationRow.status == status.value)
-            stmt = stmt.order_by(ApplicationRow.updated_ts.desc())
+            # Un entretien à préparer (ou une relance à faire) est ce
+            # qu'on veut voir en premier, pas noyé par les candidatures
+            # juste envoyées ou déjà closes : tri par PRIORITÉ de statut
+            # d'abord, par date de mise à jour ensuite (dans chaque
+            # groupe, la plus récente en tête). Sans ce tri, une
+            # candidature trackée après coup (ex. retrouvée dans les
+            # mails) remonte en tête simplement parce qu'elle vient
+            # d'être créée, même si elle n'a encore aucune réponse.
+            priority = case(
+                (ApplicationRow.status == ApplicationStatus.ENTRETIEN.value, 0),
+                (ApplicationRow.status == ApplicationStatus.RELANCE.value, 1),
+                (ApplicationRow.status == ApplicationStatus.ACCEPTE.value, 2),
+                (ApplicationRow.status == ApplicationStatus.POSTULE.value, 3),
+                (ApplicationRow.status == ApplicationStatus.REFUSE.value, 4),
+                else_=5,
+            )
+            stmt = stmt.order_by(priority, ApplicationRow.updated_ts.desc())
             rows = session.scalars(stmt).all()
             return [_to_application(r) for r in rows]
 

@@ -473,3 +473,34 @@ Règles :
 - Réponds uniquement par la liste de questions, rien d'autre (pas
   d'introduction, pas de conclusion).
 """
+
+SYSTEM_APPLICATION_CONFIRMATION = """Tu analyses UN mail pour savoir s'il
+confirme l'ENVOI d'une candidature (stage/emploi) à une entreprise précise
+- pas une offre reçue en prospection, pas une newsletter, pas un accusé de
+réception générique sans rapport avec une candidature (ex. inscription à
+un compte, confirmation de commande).
+
+Exemples qui DOIVENT être détectés : "Votre candidature est arrivée chez
+X", "Nous avons bien reçu votre candidature pour le poste de...", "Your
+application was sent to X", une confirmation de plateforme (HelloWork,
+LinkedIn, Welcome to the Jungle, Indeed...) nommant une entreprise et un
+intitulé de poste précis.
+
+Règles strictes :
+- `est_confirmation_candidature` : `true` UNIQUEMENT si le mail confirme
+  qu'UNE candidature précise a bien été ENVOYÉE/REÇUE (entreprise ET
+  intitulé de poste identifiables). `false` pour tout le reste, y compris
+  une offre d'emploi reçue sans qu'on y ait postulé.
+- `entreprise` : le nom de l'entreprise qui reçoit la candidature (jamais
+  la plateforme d'envoi elle-même, ex. "HelloWork" n'est pas l'entreprise
+  si le mail dit "chez Phosphea"). Si l'entreprise réelle n'est nulle part
+  nommée dans le mail (ex. un portail d'école confirme l'envoi sans jamais
+  citer l'employeur), laisse `entreprise` à `null` (valeur JSON null,
+  jamais le mot "null" écrit en texte) - ne mets jamais le nom de la
+  plateforme à la place.
+- `intitule_poste` : l'intitulé du poste tel qu'écrit dans le mail,
+  jamais reformulé ni traduit.
+- Si `est_confirmation_candidature` est `false`, laisse `entreprise` et
+  `intitule_poste` à `null`.
+- Tu n'inventes jamais une information absente du mail.
+"""

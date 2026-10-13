@@ -182,3 +182,36 @@ def test_migrates_a_pre_existing_database_without_losing_data(tmp_path: Path):
     # Et les nouvelles colonnes sont bien utilisables après migration.
     updated = store.set_description("old-1", "Texte de l'offre récupéré après coup.")
     assert updated.description == "Texte de l'offre récupéré après coup."
+
+
+def test_list_puts_entretien_first_even_when_less_recently_updated(tmp_path: Path):
+    """Bug réel évité : une candidature POSTULE trackée APRÈS un entretien
+    déjà en cours (ex. retrouvée dans les mails après coup) ne doit pas
+    passer devant simplement parce qu'elle vient d'être créée - l'ordre
+    doit rester piloté par la PRIORITÉ du statut, pas par la fraîcheur."""
+    store = ApplicationsStore(tmp_path / "applications.db")
+    store.record(offer_id="old-entretien", title="Ancien entretien")
+    store.update_status("old-entretien", ApplicationStatus.ENTRETIEN)
+    # Créée APRÈS, donc updated_ts plus récent, mais statut moins prioritaire.
+    store.record(offer_id="new-postule", title="Nouvelle candidature")
+
+    ordered = [a.offer_id for a in store.list()]
+
+    assert ordered == ["old-entretien", "new-postule"]
+
+
+def test_list_orders_every_status_by_priority_then_recency(tmp_path: Path):
+    store = ApplicationsStore(tmp_path / "applications.db")
+    store.record(offer_id="a-refuse", title="A")
+    store.update_status("a-refuse", ApplicationStatus.REFUSE)
+    store.record(offer_id="b-postule", title="B")
+    store.record(offer_id="c-accepte", title="C")
+    store.update_status("c-accepte", ApplicationStatus.ACCEPTE)
+    store.record(offer_id="d-relance", title="D")
+    store.update_status("d-relance", ApplicationStatus.RELANCE)
+    store.record(offer_id="e-entretien", title="E")
+    store.update_status("e-entretien", ApplicationStatus.ENTRETIEN)
+
+    ordered = [a.offer_id for a in store.list()]
+
+    assert ordered == ["e-entretien", "d-relance", "c-accepte", "b-postule", "a-refuse"]
