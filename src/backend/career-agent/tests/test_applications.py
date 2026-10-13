@@ -139,6 +139,18 @@ def test_set_description_returns_none_for_unknown_offer(tmp_path: Path):
     store = ApplicationsStore(tmp_path / "applications.db")
     assert store.set_description("inconnu", "...") is None
     assert store.set_questions("inconnu", "...") is None
+    assert store.set_interview_date("inconnu", "20/10/2026 14h") is None
+
+
+def test_set_interview_date(tmp_path: Path):
+    store = ApplicationsStore(tmp_path / "applications.db")
+    store.record(offer_id="1", title="Data Scientist", company="ACME")
+
+    updated = store.set_interview_date("1", "20/10/2026 14h")
+
+    assert updated.interview_date == "20/10/2026 14h"
+    reloaded = store.get("1")
+    assert reloaded.interview_date == "20/10/2026 14h"
 
 
 def test_migrates_a_pre_existing_database_without_losing_data(tmp_path: Path):
@@ -178,6 +190,7 @@ def test_migrates_a_pre_existing_database_without_losing_data(tmp_path: Path):
     assert existing.title == "Stagiaire"
     assert existing.description is None
     assert existing.questions is None
+    assert existing.interview_date is None
 
     # Et les nouvelles colonnes sont bien utilisables après migration.
     updated = store.set_description("old-1", "Texte de l'offre récupéré après coup.")

@@ -115,6 +115,18 @@ export function useApplications() {
     []
   );
 
+  const setInterviewDate = useCallback(
+    async (offerId: string, interviewDate: string) => {
+      try {
+        const updated = await updateApplication(offerId, { interview_date: interviewDate });
+        setApplications((prev) => prev.map((a) => (a.offer_id === offerId ? updated : a)));
+      } catch (err) {
+        setError(err instanceof ApiError ? err.message : "Mise à jour impossible.");
+      }
+    },
+    []
+  );
+
   const generateQuestions = useCallback(async (offerId: string, description?: string) => {
     try {
       const updated = await generateApplicationQuestions(offerId, description);
@@ -134,6 +146,7 @@ export function useApplications() {
     remove,
     checkReplies,
     setDescription,
+    setInterviewDate,
     generateQuestions,
   };
 }

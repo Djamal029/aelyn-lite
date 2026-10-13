@@ -61,6 +61,7 @@ class ApplicationRow(Base):
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     questions: Mapped[str | None] = mapped_column(Text, nullable=True)
+    interview_date: Mapped[str | None] = mapped_column(String, nullable=True)
 
 
 @dataclass(slots=True, frozen=True)
@@ -74,6 +75,7 @@ class Application:
     notes: str | None
     description: str | None
     questions: str | None
+    interview_date: str | None
 
     def to_line(self) -> str:
         moment = self.applied_ts.astimezone().strftime("%d/%m")
@@ -81,7 +83,7 @@ class Application:
         return f"{moment} | {status_label(self.status):<16} | {self.title}{cible}"
 
 
-_NEW_COLUMNS = ("description", "questions")
+_NEW_COLUMNS = ("description", "questions", "interview_date")
 
 
 class ApplicationsStore:
@@ -127,6 +129,7 @@ class ApplicationsStore:
                 notes=None,
                 description=description,
                 questions=None,
+                interview_date=None,
             )
             session.add(row)
             session.commit()
@@ -170,6 +173,20 @@ class ApplicationsStore:
             if row is None:
                 return None
             row.questions = questions
+            row.updated_ts = datetime.now(timezone.utc).isoformat()
+            session.commit()
+            return _to_application(row)
+
+    def set_interview_date(self, offer_id: str, interview_date: str | None) -> Application | None:
+        """Date proposée/confirmée pour un entretien - saisie à la main
+        (ex. en réponse au recruteur) ou complétée plus tard depuis un
+        mail détecté, affichée séparément des notes en texte libre pour
+        rester visible d'un coup d'œil dans le suivi."""
+        with Session(self._engine) as session:
+            row = session.get(ApplicationRow, offer_id)
+            if row is None:
+                return None
+            row.interview_date = interview_date
             row.updated_ts = datetime.now(timezone.utc).isoformat()
             session.commit()
             return _to_application(row)
@@ -252,4 +269,5 @@ def _to_application(row: ApplicationRow) -> Application:
         notes=row.notes,
         description=row.description,
         questions=row.questions,
+        interview_date=row.interview_date,
     )

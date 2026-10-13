@@ -842,6 +842,22 @@ class TestApplications:
         assert response.status_code == 200
         assert response.json()["description"] == "Stage de 6 mois."
 
+    def test_patch_application_sets_interview_date(self, tmp_path) -> None:
+        from aelyn_api.deps import get_applications_store
+
+        store = self._store(tmp_path)
+        store.record(offer_id="1", title="Data Scientist", company="EDF")
+        app.dependency_overrides[get_applications_store] = lambda: store
+        try:
+            response = client.patch(
+                "/applications/1", json={"interview_date": "20/10/2026 14h"}
+            )
+        finally:
+            app.dependency_overrides.clear()
+
+        assert response.status_code == 200
+        assert response.json()["interview_date"] == "20/10/2026 14h"
+
     def test_check_replies_skips_mailbox_when_no_tracked_applications(self, tmp_path) -> None:
         from unittest.mock import patch
 

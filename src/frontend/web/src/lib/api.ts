@@ -309,6 +309,7 @@ export interface ApiApplication {
   notes: string | null;
   description: string | null;
   questions: string | null;
+  interview_date: string | null;
 }
 
 /** GET /applications : le vrai suivi (aelyn_career.applications), la
@@ -326,7 +327,7 @@ export function getApplications(status?: ApplicationStatus): Promise<ApiApplicat
  * n'ajoute que la note. */
 export function updateApplication(
   offerId: string,
-  patch: { status?: ApplicationStatus; note?: string; description?: string }
+  patch: { status?: ApplicationStatus; note?: string; description?: string; interview_date?: string }
 ): Promise<ApiApplication> {
   return request(`/applications/${offerId}`, { method: "PATCH", body: patch });
 }

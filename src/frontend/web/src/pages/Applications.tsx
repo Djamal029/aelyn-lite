@@ -25,16 +25,19 @@ const STATUS_BADGE: Record<ApplicationStatus, BadgeKind> = {
 interface DetailRowProps {
   application: ApiApplication;
   onSetDescription: (offerId: string, description: string) => void;
+  onSetInterviewDate: (offerId: string, interviewDate: string) => void;
   onGenerateQuestions: (offerId: string, description?: string) => void;
 }
 
 /** Panneau déplié sous une ligne : description de l'offre (collée/éditée
- * à la main, AELYN n'invente jamais le contenu d'une offre) et questions
- * à poser au recruteur (générées par AELYN à partir de cette description,
+ * à la main, AELYN n'invente jamais le contenu d'une offre), date
+ * proposée pour l'entretien (éditée à la main aussi) et questions à
+ * poser au recruteur (générées par AELYN à partir de cette description,
  * cf. `generate_interview_questions`). Édition locale avant envoi : coller
  * un long texte ne doit pas déclencher une requête à chaque caractère. */
-function DetailRow({ application, onSetDescription, onGenerateQuestions }: DetailRowProps) {
+function DetailRow({ application, onSetDescription, onSetInterviewDate, onGenerateQuestions }: DetailRowProps) {
   const [draft, setDraft] = useState(application.description ?? "");
+  const [dateDraft, setDateDraft] = useState(application.interview_date ?? "");
   const [generating, setGenerating] = useState(false);
 
   const handleGenerate = async () => {
@@ -51,7 +54,7 @@ function DetailRow({ application, onSetDescription, onGenerateQuestions }: Detai
 
   return (
     <tr className={styles.detailRow}>
-      <td colSpan={7}>
+      <td colSpan={8}>
         <div className={styles.detailGrid}>
           <div className={styles.detailBlock}>
             <div className={styles.detailLabel}>Description de l'offre</div>
@@ -66,6 +69,21 @@ function DetailRow({ application, onSetDescription, onGenerateQuestions }: Detai
               }}
               placeholder="Colle ici le texte de l'offre (optionnel, utilisé pour générer des questions pertinentes)."
               rows={6}
+            />
+          </div>
+          <div className={styles.detailBlock}>
+            <div className={styles.detailLabel}>Date proposée pour l'entretien</div>
+            <input
+              type="text"
+              className={styles.interviewDateInput}
+              value={dateDraft}
+              onChange={(event) => setDateDraft(event.target.value)}
+              onBlur={() => {
+                if (dateDraft !== (application.interview_date ?? "")) {
+                  onSetInterviewDate(application.offer_id, dateDraft);
+                }
+              }}
+              placeholder="Ex. 20/10/2026 14h, à confirmer"
             />
           </div>
           <div className={styles.detailBlock}>
@@ -104,6 +122,7 @@ export function Applications() {
     remove,
     checkReplies,
     setDescription,
+    setInterviewDate,
     generateQuestions,
   } = useApplications();
   const [confirmingDelete, setConfirmingDelete] = useState<string | null>(null);
@@ -172,6 +191,7 @@ export function Applications() {
                 <th>Intitulé</th>
                 <th>Entreprise</th>
                 <th>Statut</th>
+                <th>Entretien proposé</th>
                 <th>Mis à jour</th>
                 <th>Notes</th>
                 <th aria-label="Actions" />
@@ -215,6 +235,7 @@ export function Applications() {
                         </select>
                       </div>
                     </td>
+                    <td className={styles.date}>{application.interview_date || "—"}</td>
                     <td className={styles.date}>{formatTimestamp(application.updated_at)}</td>
                     <td className={styles.notes}>{application.notes || "—"}</td>
                     <td onClick={(event) => event.stopPropagation()}>
@@ -237,6 +258,9 @@ export function Applications() {
                       application={application}
                       onSetDescription={(offerId, description) =>
                         void setDescription(offerId, description)
+                      }
+                      onSetInterviewDate={(offerId, interviewDate) =>
+                        void setInterviewDate(offerId, interviewDate)
                       }
                       onGenerateQuestions={(offerId, description) =>
                         generateQuestions(offerId, description)

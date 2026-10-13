@@ -229,6 +229,23 @@
   border-color: var(--state-blue);
 }
 
+.interviewDateInput {
+  width: 100%;
+  background: var(--bg-panel);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-size: var(--fs-sm);
+  font-family: inherit;
+  padding: var(--sp-2);
+  box-sizing: border-box;
+}
+
+.interviewDateInput:focus {
+  outline: none;
+  border-color: var(--state-blue);
+}
+
 .questionsText {
   white-space: pre-wrap;
   font-family: inherit;

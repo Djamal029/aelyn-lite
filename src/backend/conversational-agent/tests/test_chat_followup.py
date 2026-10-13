@@ -725,6 +725,7 @@ class TestApplicationsTracking:
             notes=None,
             description=None,
             questions=None,
+            interview_date=None,
         )
         defaults.update(overrides)
         return Application(**defaults)

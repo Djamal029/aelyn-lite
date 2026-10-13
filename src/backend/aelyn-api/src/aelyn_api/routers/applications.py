@@ -38,6 +38,7 @@ class ApplicationOut(BaseModel):
     notes: str | None = None
     description: str | None = None
     questions: str | None = None
+    interview_date: str | None = None
 
 
 def _to_out(app: Application) -> ApplicationOut:
@@ -52,6 +53,7 @@ def _to_out(app: Application) -> ApplicationOut:
         notes=app.notes,
         description=app.description,
         questions=app.questions,
+        interview_date=app.interview_date,
     )
 
 
@@ -78,6 +80,7 @@ class ApplicationPatchIn(BaseModel):
     status: str | None = None
     note: str | None = None
     description: str | None = None
+    interview_date: str | None = None
 
 
 @router.patch("/{offer_id}", response_model=ApplicationOut)
@@ -97,6 +100,8 @@ def update_application(
     assert updated is not None
     if body.description is not None:
         updated = store.set_description(offer_id, body.description) or updated
+    if body.interview_date is not None:
+        updated = store.set_interview_date(offer_id, body.interview_date) or updated
     return _to_out(updated)
 
 
