@@ -44,6 +44,7 @@ from aelyn.core.config import settings
 from aelyn.core.llm import KEEP_ALIVE_OCCASIONAL, LLMClient, LLMError, is_model_available
 from aelyn.core.spinner import Spinner
 from aelyn_career.agent import run_command as career_run_command
+from aelyn_career.application_replies import check_application_replies
 from aelyn_career.application_writer import (
     ApplicationWriter,
     format_cv_text,
@@ -53,6 +54,7 @@ from aelyn_career.apply_by_mail import ApplyByMailError, send_application_by_mai
 from aelyn_career.applications import ApplicationsStore, ApplicationStatus, status_label
 from aelyn_career.france_travail.offers import FTOffers
 from aelyn_email.agent import EmailAgent, run_command
+from aelyn_email.client import MailboxError, list_recent_or_flagged
 from aelyn_email.models import Mail
 from aelyn_media.agent import MediaController
 from aelyn_media.camera import show_camera
@@ -217,6 +219,17 @@ DESCRIBE_OFFER_RE = re.compile(r"\bd[ée]cri\w*\b|\bd[ée]taill\w*\b", re.IGNORE
 # `_try_apply_by_mail`/`_try_prepare_cv`/`_try_prepare_lm` (qui matchent
 # aussi "candidature"), sinon "marque ma candidature..." partirait vers
 # un brouillon de lettre au lieu d'une mise à jour de statut.
+# "vérifie les réponses à mes candidatures" / "des nouvelles de mes
+# candidatures ?" / "ai-je des réponses de recruteurs ?" : interceptés
+# AVANT `APPLICATIONS_QUERY_RE` (qui matcherait aussi "mes candidatures"
+# dans ces phrases) et AVANT `_try_update_application`, sinon la phrase
+# serait mal aiguillée vers une simple liste ou une mise à jour manuelle
+# au lieu de déclencher la lecture de mails + mise à jour automatique.
+CHECK_APPLICATION_REPLIES_RE = re.compile(
+    r"\b(nouvelles? de mes candidatures|r[ée]ponses? (?:[àa] mes |de )?candidatures?|"
+    r"r[ée]ponses? de recruteurs?|r[ée]ponses? des entreprises)\b",
+    re.IGNORECASE,
+)
 APPLICATIONS_QUERY_RE = re.compile(
     r"\b(mes candidatures|suivi des candidatures|statut de mes candidatures|"
     r"o[uù] en (sont|est) mes candidatures|liste (de )?mes candidatures)\b",
@@ -1081,6 +1094,8 @@ class ConversationalAgent:
         # "marque ma candidature..."/"mes candidatures" contiennent
         # "candidature", sans cet ordre ce serait mal aiguillé vers un
         # envoi/brouillon au lieu d'une lecture/mise à jour de suivi.
+        if self._try_check_application_replies(phrase):
+            return
         if self._try_query_applications(phrase):
             return
         if self._try_update_application(phrase):
@@ -1473,6 +1488,55 @@ class ConversationalAgent:
             question += f"\n\n{infos}"
         _print_agent_bubble(question)
         return question
+
+    def _try_check_application_replies(self, phrase: str) -> bool:
+        """« vérifie les réponses à mes candidatures » / « des nouvelles
+        de mes candidatures ? » : relit les mails des 30 derniers jours
+        (lus OU non lus, + ceux marqués importants - cf.
+        `list_recent_or_flagged`, contrairement à `verifier`/`triage` qui
+        ne voient jamais un mail déjà lu), retrouve ceux qui répondent à
+        une candidature suivie, et met à jour son statut/ses notes avec
+        les détails trouvés (ex. créneau d'entretien proposé). Exécuté
+        immédiatement, pas de confirmation : une lecture + une mise à
+        jour de statut, aucun envoi, aucune action sur la boîte mail
+        elle-même."""
+        if not CHECK_APPLICATION_REPLIES_RE.search(_normalize(phrase)):
+            return False
+
+        apps = self.applications_store.list()
+        if not apps:
+            self._say("Aucune candidature suivie pour l'instant, rien à rapprocher de tes mails.")
+            return True
+
+        self._say("Je regarde si tes mails contiennent des réponses à tes candidatures…")
+        try:
+            mails = list_recent_or_flagged(days=30)
+        except MailboxError as exc:
+            self._say(f"Messagerie injoignable : {exc}")
+            return True
+
+        results = check_application_replies(
+            self.applications_store, self.application_writer.llm, mails,
+            journal=self.email_agent.journal,
+        )
+
+        if not results:
+            self._say("Rien de nouveau : aucune réponse de recruteur trouvée dans tes mails récents.")
+            return True
+
+        intro = f"{len(results)} réponse(s) de candidature trouvée(s) :"
+        lignes = []
+        for result in results:
+            app = result.application
+            lignes.append(
+                f"- {app.title} chez {app.company or '?'} : {status_label(app.status)} "
+                f"({result.analysis.resume})"
+            )
+        details = "\n".join(lignes)
+        _print_agent_bubble(intro)
+        _print_agent_bubble(details)
+        self._finish_say(details, spoken=intro)
+        return True
 
     def _try_query_applications(self, phrase: str) -> bool:
         """« où en sont mes candidatures ? » : liste les candidatures

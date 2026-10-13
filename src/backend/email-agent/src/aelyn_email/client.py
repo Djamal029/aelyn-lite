@@ -16,6 +16,7 @@ import imaplib
 import logging
 import smtplib
 from contextlib import contextmanager
+from datetime import datetime, timedelta, timezone
 from email.message import EmailMessage
 from typing import Iterator
 
@@ -75,37 +76,61 @@ def imap_session(mailbox: str = "INBOX") -> Iterator[imaplib.IMAP4_SSL]:
             pass
 
 
-def list_unread(limit: int | None = None) -> list[Mail]:
-    """Les `limit` mails non lus les plus récents, sans les marquer comme lus."""
-    limit = limit or settings.max_mails_per_run
+def _fetch_mails(conn: imaplib.IMAP4_SSL, uids: list[bytes]) -> list[Mail]:
+    """Récupère et parse une liste de UID déjà connus, via BODY.PEEK[] (ne
+    marque jamais \\Seen, cf. docstring du module). Factorisé hors de
+    `search_mails` : seule la façon d'obtenir `uids` diffère entre une
+    recherche UNSEEN et une recherche plus large."""
     mails: list[Mail] = []
+    for raw_uid in uids:
+        uid = raw_uid.decode()
+        status, payload = conn.uid("FETCH", uid, "(BODY.PEEK[])")
+        if status != "OK" or not payload:
+            logger.warning("Impossible de récupérer le mail %s", uid)
+            continue
 
+        for part in payload:
+            if not isinstance(part, tuple):
+                continue
+            try:
+                msg = email.message_from_bytes(part[1])
+                mails.append(parse_mail(uid, msg))
+            except Exception:  # un mail malformé ne doit pas tuer le run
+                logger.exception("Mail %s illisible, ignoré", uid)
+            break
+    return mails
+
+
+def search_mails(criteria: str, limit: int | None = None) -> list[Mail]:
+    """Recherche IMAP générique (`criteria` est un critère `SEARCH` brut,
+    ex. `"UNSEEN"`, `"FLAGGED"`, `'(SINCE 01-Jan-2026)'`), jamais filtrée
+    par nous sur `\\Seen` : c'est `criteria` seul qui décide. Les `limit`
+    résultats les plus récents, sans jamais marquer un mail comme lu."""
+    limit = limit or settings.max_mails_per_run
     with imap_session() as conn:
-        status, data = conn.uid("SEARCH", None, "UNSEEN")
+        status, data = conn.uid("SEARCH", None, criteria)
         if status != "OK" or not data or not data[0]:
             return []
-
         # Les plus récents sont en fin de liste.
         uids = data[0].split()[-limit:]
+        return _fetch_mails(conn, uids)
 
-        for raw_uid in uids:
-            uid = raw_uid.decode()
-            status, payload = conn.uid("FETCH", uid, "(BODY.PEEK[])")
-            if status != "OK" or not payload:
-                logger.warning("Impossible de récupérer le mail %s", uid)
-                continue
 
-            for part in payload:
-                if not isinstance(part, tuple):
-                    continue
-                try:
-                    msg = email.message_from_bytes(part[1])
-                    mails.append(parse_mail(uid, msg))
-                except Exception:  # un mail malformé ne doit pas tuer le run
-                    logger.exception("Mail %s illisible, ignoré", uid)
-                break
+def list_unread(limit: int | None = None) -> list[Mail]:
+    """Les `limit` mails non lus les plus récents, sans les marquer comme lus."""
+    return search_mails("UNSEEN", limit)
 
-    return mails
+
+def list_recent_or_flagged(days: int = 30, limit: int | None = None) -> list[Mail]:
+    """Mails des `days` derniers jours (lus OU non lus) + mails marqués
+    importants (`\\Flagged`, l'étoile Gmail et la plupart des clients)
+    quel que soit leur âge. Contrairement à `list_unread`, ne filtre PAS
+    sur `\\Seen` : un mail déjà lu (ex. consulté sur le téléphone) reste
+    visible. Pensé pour retrouver une réponse de recruteur qu'un simple
+    triage UNSEEN manquerait - jamais utilisé par `triage()` lui-même
+    (qui reste volontairement UNSEEN-only, cf. `EmailAgent.triage`)."""
+    since = (datetime.now(timezone.utc) - timedelta(days=days)).strftime("%d-%b-%Y")
+    return search_mails(f"(OR (SINCE {since}) FLAGGED)", limit)
 
 
 def mark_seen(uid: str) -> None:

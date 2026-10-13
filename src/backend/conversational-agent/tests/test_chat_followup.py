@@ -12,6 +12,7 @@ ROUTAGE et la résolution de "la liste entière" vs "un item précis", pas
 un vrai appel réseau/LLM.
 """
 
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
@@ -785,3 +786,76 @@ class TestApplicationsTracking:
             agent.handle_message("marque ma candidature chez EDF comme entretien")
 
         mock_lm.assert_not_called()
+
+    def test_check_application_replies_reports_matches(self, agent):
+        """« vérifie les réponses à mes candidatures » : lit les mails
+        récents (lus ou non), rapproche des candidatures suivies, affiche
+        le résultat retourné par `check_application_replies`."""
+        from aelyn_career.applications import ApplicationStatus
+
+        app = self._make_application(status=ApplicationStatus.ENTRETIEN)
+        agent.applications_store.list.return_value = [app]
+
+        fake_result = SimpleNamespace(
+            application=app,
+            analysis=SimpleNamespace(resume="Demande de créneau pour un entretien."),
+        )
+        with (
+            patch("aelyn_conversation.agent.list_recent_or_flagged", return_value=[Mail(
+                uid="1", sender="RH", sender_email="rh@edf.fr", subject="Entretien", body="...",
+            )]),
+            patch("aelyn_conversation.agent.check_application_replies", return_value=[fake_result]),
+        ):
+            result = agent.handle_message("vérifie les réponses à mes candidatures")
+
+        assert "Data Scientist" in result.text
+        assert "EDF" in result.text
+
+    def test_check_application_replies_reports_nothing_found(self, agent):
+        app = self._make_application()
+        agent.applications_store.list.return_value = [app]
+
+        with (
+            patch("aelyn_conversation.agent.list_recent_or_flagged", return_value=[]),
+            patch("aelyn_conversation.agent.check_application_replies", return_value=[]),
+        ):
+            result = agent.handle_message("des nouvelles de mes candidatures ?")
+
+        assert "Rien de nouveau" in result.text
+
+    def test_check_application_replies_skips_mailbox_when_no_tracked_apps(self, agent):
+        """Aucune candidature suivie : ne doit même pas tenter de lire
+        les mails (coûteux - une connexion IMAP réelle)."""
+        agent.applications_store.list.return_value = []
+
+        with patch("aelyn_conversation.agent.list_recent_or_flagged") as mock_list:
+            result = agent.handle_message("vérifie les réponses à mes candidatures")
+
+        mock_list.assert_not_called()
+        assert "Aucune candidature" in result.text
+
+    def test_check_application_replies_reports_mailbox_error_clearly(self, agent):
+        from aelyn_email.client import MailboxError
+
+        app = self._make_application()
+        agent.applications_store.list.return_value = [app]
+
+        with patch(
+            "aelyn_conversation.agent.list_recent_or_flagged",
+            side_effect=MailboxError("Messagerie non configurée"),
+        ):
+            result = agent.handle_message("vérifie les réponses à mes candidatures")
+
+        assert "injoignable" in result.text or "non configurée" in result.text
+
+    def test_check_application_replies_not_caught_by_query_applications(self, agent):
+        # "réponses à mes candidatures" contient "mes candidatures"
+        # (déclencheur de `APPLICATIONS_QUERY_RE`) : doit rester
+        # intercepté par `_try_check_application_replies` (ordre de
+        # dispatch), pas partir vers une simple liste.
+        agent.applications_store.list.return_value = []
+
+        with patch.object(agent, "_try_query_applications") as mock_query:
+            agent.handle_message("vérifie les réponses à mes candidatures")
+
+        mock_query.assert_not_called()

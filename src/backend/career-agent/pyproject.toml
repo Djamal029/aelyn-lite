@@ -5,6 +5,7 @@ description = "AELYN : agent carrière (profil, CV, recherche d'opportunités)"
 requires-python = ">=3.11"
 dependencies = [
     "aelyn",
+    "aelyn-email",
     "python-dotenv>=1.0",
     "sentence-transformers>=3.0",
     "rank-bm25>=0.2",
@@ -26,6 +27,7 @@ packages = ["src/aelyn_career"]
 
 [tool.uv.sources]
 aelyn = { workspace = true }
+aelyn-email = { workspace = true }
 # pytorch-cu130 : réécrit par src/backend/scripts/install.sh/.ps1 avant
 # `uv sync`, selon qu'un GPU NVIDIA compatible est détecté ou non
 # (`pytorch-cu130` ou `pytorch-cpu`, cf. les deux [[tool.uv.index]] du

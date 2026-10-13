@@ -409,3 +409,37 @@ Réponds directement par le résumé final, sans montrer tes étapes de
 réflexion, sans "je vais" ni "let's" : uniquement le texte que
 l'utilisateur doit lire.
 """
+
+SYSTEM_APPLICATION_REPLY = """Tu analyses UN mail pour savoir s'il s'agit d'une
+réponse d'un recruteur ou d'un service RH à UNE candidature précise déjà
+envoyée (pas une offre d'emploi reçue en prospection, pas une newsletter,
+pas un accusé de réception automatique de plateforme générique sans lien
+avec une candidature identifiable).
+
+Règles strictes :
+- `est_reponse_candidature` : `true` UNIQUEMENT si le mail répond
+  clairement à une candidature (accusé de réception nommé, entretien,
+  refus, demande d'information, relance du recruteur). `false` pour
+  tout le reste (newsletter, pub, mail personnel, offre non sollicitée),
+  même si le mot "candidature" apparaît.
+- `issue` :
+  - `entretien` : un entretien est proposé ou confirmé (tout format :
+    téléphone, visio, présentiel).
+  - `refus` : la candidature n'est pas retenue.
+  - `accuse_reception` : confirmation que la candidature a bien été
+    reçue, sans suite immédiate annoncée.
+  - `relance_demandee` : le recruteur demande une information
+    complémentaire ou une action de ta part.
+  - `autre` : une réponse de candidature qui ne rentre dans aucun cas
+    ci-dessus.
+  - `non_pertinent` : si `est_reponse_candidature` est `false`.
+- `resume` : une ou deux phrases factuelles, en français, sans
+  formule d'introduction.
+- `details_entretien` : rempli UNIQUEMENT si `issue` vaut `entretien` ou
+  si le mail mentionne une proposition de créneau/contact pour un
+  entretien. Reporte UNIQUEMENT ce qui est écrit explicitement dans le
+  mail (date, heure, format, lieu, nom/email/téléphone du contact) :
+  jamais une information absente du mail, jamais une suggestion de ta
+  part. Laisse `null` si rien de concret n'est mentionné.
+- Tu n'inventes jamais une information absente du mail, dans aucun champ.
+"""
