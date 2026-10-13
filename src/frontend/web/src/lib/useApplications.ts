@@ -1,11 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ApiError,
+  checkApplicationReplies,
   deleteApplication,
+  generateApplicationQuestions,
   getApplications,
   updateApplication,
   type ApiApplication,
   type ApplicationStatus,
+  type CheckRepliesResult,
 } from "./api";
 
 /** Mêmes principes que `useActivityEntries` (poll régulier, pas de
@@ -21,6 +24,7 @@ export function useApplications() {
   const [applications, setApplications] = useState<ApiApplication[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [checkingReplies, setCheckingReplies] = useState(false);
   const refreshing = useRef(false);
 
   const refresh = useCallback(async () => {
@@ -80,5 +84,56 @@ export function useApplications() {
     [applications]
   );
 
-  return { applications, loading, error, refresh, setStatus, remove };
+  /** Relit les mails récents côté backend (lus ou non) pour y chercher
+   * des réponses de recruteurs, jamais les mêmes mails deux fois (cf.
+   * `check_application_replies`, dédoublonné via le journal) : un clic
+   * répété sur "Actualiser" ne refacture donc jamais le même mail. */
+  const checkReplies = useCallback(async (): Promise<CheckRepliesResult | null> => {
+    setCheckingReplies(true);
+    try {
+      const result = await checkApplicationReplies();
+      await refresh();
+      setError(null);
+      return result;
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Vérification des réponses impossible.");
+      return null;
+    } finally {
+      setCheckingReplies(false);
+    }
+  }, [refresh]);
+
+  const setDescription = useCallback(
+    async (offerId: string, description: string) => {
+      try {
+        const updated = await updateApplication(offerId, { description });
+        setApplications((prev) => prev.map((a) => (a.offer_id === offerId ? updated : a)));
+      } catch (err) {
+        setError(err instanceof ApiError ? err.message : "Mise à jour impossible.");
+      }
+    },
+    []
+  );
+
+  const generateQuestions = useCallback(async (offerId: string, description?: string) => {
+    try {
+      const updated = await generateApplicationQuestions(offerId, description);
+      setApplications((prev) => prev.map((a) => (a.offer_id === offerId ? updated : a)));
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Génération des questions impossible.");
+    }
+  }, []);
+
+  return {
+    applications,
+    loading,
+    error,
+    checkingReplies,
+    refresh,
+    setStatus,
+    remove,
+    checkReplies,
+    setDescription,
+    generateQuestions,
+  };
 }

@@ -1,9 +1,9 @@
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { Badge, type BadgeKind } from "../components/ui/Badge";
 import { EmptyState } from "../components/ui/EmptyState";
 import { formatTimestamp } from "../lib/time";
 import { useApplications } from "../lib/useApplications";
-import type { ApplicationStatus } from "../lib/api";
+import type { ApiApplication, ApplicationStatus } from "../lib/api";
 import styles from "./Applications.module.css";
 
 const STATUS_OPTIONS: { value: ApplicationStatus; label: string }[] = [
@@ -22,9 +22,93 @@ const STATUS_BADGE: Record<ApplicationStatus, BadgeKind> = {
   accepte: "operational",
 };
 
+interface DetailRowProps {
+  application: ApiApplication;
+  onSetDescription: (offerId: string, description: string) => void;
+  onGenerateQuestions: (offerId: string, description?: string) => void;
+}
+
+/** Panneau déplié sous une ligne : description de l'offre (collée/éditée
+ * à la main, AELYN n'invente jamais le contenu d'une offre) et questions
+ * à poser au recruteur (générées par AELYN à partir de cette description,
+ * cf. `generate_interview_questions`). Édition locale avant envoi : coller
+ * un long texte ne doit pas déclencher une requête à chaque caractère. */
+function DetailRow({ application, onSetDescription, onGenerateQuestions }: DetailRowProps) {
+  const [draft, setDraft] = useState(application.description ?? "");
+  const [generating, setGenerating] = useState(false);
+
+  const handleGenerate = async () => {
+    setGenerating(true);
+    try {
+      if (draft !== (application.description ?? "")) {
+        onSetDescription(application.offer_id, draft);
+      }
+      await onGenerateQuestions(application.offer_id, draft || undefined);
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  return (
+    <tr className={styles.detailRow}>
+      <td colSpan={7}>
+        <div className={styles.detailGrid}>
+          <div className={styles.detailBlock}>
+            <div className={styles.detailLabel}>Description de l'offre</div>
+            <textarea
+              className={styles.descriptionInput}
+              value={draft}
+              onChange={(event) => setDraft(event.target.value)}
+              onBlur={() => {
+                if (draft !== (application.description ?? "")) {
+                  onSetDescription(application.offer_id, draft);
+                }
+              }}
+              placeholder="Colle ici le texte de l'offre (optionnel, utilisé pour générer des questions pertinentes)."
+              rows={6}
+            />
+          </div>
+          <div className={styles.detailBlock}>
+            <div className={styles.detailLabel}>Questions à poser au recruteur</div>
+            {application.questions ? (
+              <pre className={styles.questionsText}>{application.questions}</pre>
+            ) : (
+              <div className={styles.questionsEmpty}>Pas encore générées.</div>
+            )}
+            <button
+              type="button"
+              className={styles.generateButton}
+              onClick={() => void handleGenerate()}
+              disabled={generating}
+            >
+              {generating
+                ? "Génération…"
+                : application.questions
+                  ? "Régénérer les questions"
+                  : "Générer des questions"}
+            </button>
+          </div>
+        </div>
+      </td>
+    </tr>
+  );
+}
+
 export function Applications() {
-  const { applications, loading, error, setStatus, remove } = useApplications();
+  const {
+    applications,
+    loading,
+    error,
+    checkingReplies,
+    setStatus,
+    remove,
+    checkReplies,
+    setDescription,
+    generateQuestions,
+  } = useApplications();
   const [confirmingDelete, setConfirmingDelete] = useState<string | null>(null);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [checkMessage, setCheckMessage] = useState<string | null>(null);
 
   const handleDelete = (offerId: string) => {
     if (confirmingDelete !== offerId) {
@@ -35,13 +119,37 @@ export function Applications() {
     void remove(offerId);
   };
 
+  const handleCheckReplies = async () => {
+    setCheckMessage(null);
+    const result = await checkReplies();
+    if (result === null) return;
+    setCheckMessage(
+      result.found.length === 0
+        ? "Rien de nouveau."
+        : `${result.found.length} nouvelle(s) réponse(s) trouvée(s).`
+    );
+  };
+
   return (
     <div className={styles.page}>
       <div className={styles.header}>
-        <div className={styles.title}>Mes candidatures</div>
-        <div className={styles.subtitle}>
-          Statut modifiable ici ou par AELYN ("marque ma candidature chez X comme entretien").
-          Actualisé automatiquement.
+        <div>
+          <div className={styles.title}>Mes candidatures</div>
+          <div className={styles.subtitle}>
+            Statut modifiable ici ou par AELYN ("marque ma candidature chez X comme entretien").
+            Actualisé automatiquement.
+          </div>
+        </div>
+        <div className={styles.headerActions}>
+          {checkMessage ? <span className={styles.checkMessage}>{checkMessage}</span> : null}
+          <button
+            type="button"
+            className={styles.refreshButton}
+            onClick={() => void handleCheckReplies()}
+            disabled={checkingReplies}
+          >
+            {checkingReplies ? "Vérification…" : "Actualiser (vérifier les réponses)"}
+          </button>
         </div>
       </div>
 
@@ -71,50 +179,71 @@ export function Applications() {
             </thead>
             <tbody>
               {applications.map((application) => (
-                <tr key={application.offer_id}>
-                  <td className={styles.date}>{formatTimestamp(application.applied_at)}</td>
-                  <td className={styles.titleCell}>{application.title}</td>
-                  <td>{application.company || "—"}</td>
-                  <td>
-                    <div className={styles.statusCell}>
-                      <Badge kind={STATUS_BADGE[application.status]}>
-                        {application.status_label}
-                      </Badge>
-                      <select
-                        className={styles.select}
-                        value={application.status}
-                        onChange={(event) =>
-                          void setStatus(
-                            application.offer_id,
-                            event.target.value as ApplicationStatus
-                          )
-                        }
-                        aria-label={`Statut de la candidature ${application.title}`}
+                <Fragment key={application.offer_id}>
+                  <tr
+                    className={styles.row}
+                    onClick={() =>
+                      setExpandedId((current) =>
+                        current === application.offer_id ? null : application.offer_id
+                      )
+                    }
+                  >
+                    <td className={styles.date}>{formatTimestamp(application.applied_at)}</td>
+                    <td className={styles.titleCell}>{application.title}</td>
+                    <td>{application.company || "—"}</td>
+                    <td onClick={(event) => event.stopPropagation()}>
+                      <div className={styles.statusCell}>
+                        <Badge kind={STATUS_BADGE[application.status]}>
+                          {application.status_label}
+                        </Badge>
+                        <select
+                          className={styles.select}
+                          value={application.status}
+                          onChange={(event) =>
+                            void setStatus(
+                              application.offer_id,
+                              event.target.value as ApplicationStatus
+                            )
+                          }
+                          aria-label={`Statut de la candidature ${application.title}`}
+                        >
+                          {STATUS_OPTIONS.map((option) => (
+                            <option key={option.value} value={option.value}>
+                              {option.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </td>
+                    <td className={styles.date}>{formatTimestamp(application.updated_at)}</td>
+                    <td className={styles.notes}>{application.notes || "—"}</td>
+                    <td onClick={(event) => event.stopPropagation()}>
+                      <button
+                        type="button"
+                        className={[
+                          styles.deleteButton,
+                          confirmingDelete === application.offer_id ? styles.deleteButtonConfirm : "",
+                        ].join(" ")}
+                        onClick={() => handleDelete(application.offer_id)}
+                        onBlur={() => setConfirmingDelete(null)}
                       >
-                        {STATUS_OPTIONS.map((option) => (
-                          <option key={option.value} value={option.value}>
-                            {option.label}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  </td>
-                  <td className={styles.date}>{formatTimestamp(application.updated_at)}</td>
-                  <td className={styles.notes}>{application.notes || "—"}</td>
-                  <td>
-                    <button
-                      type="button"
-                      className={[
-                        styles.deleteButton,
-                        confirmingDelete === application.offer_id ? styles.deleteButtonConfirm : "",
-                      ].join(" ")}
-                      onClick={() => handleDelete(application.offer_id)}
-                      onBlur={() => setConfirmingDelete(null)}
-                    >
-                      {confirmingDelete === application.offer_id ? "Confirmer ?" : "Retirer"}
-                    </button>
-                  </td>
-                </tr>
+                        {confirmingDelete === application.offer_id ? "Confirmer ?" : "Retirer"}
+                      </button>
+                    </td>
+                  </tr>
+                  {expandedId === application.offer_id ? (
+                    <DetailRow
+                      key={`${application.offer_id}-detail`}
+                      application={application}
+                      onSetDescription={(offerId, description) =>
+                        void setDescription(offerId, description)
+                      }
+                      onGenerateQuestions={(offerId, description) =>
+                        generateQuestions(offerId, description)
+                      }
+                    />
+                  ) : null}
+                </Fragment>
               ))}
             </tbody>
           </table>

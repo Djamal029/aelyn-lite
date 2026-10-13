@@ -307,6 +307,8 @@ export interface ApiApplication {
   applied_at: string;
   updated_at: string;
   notes: string | null;
+  description: string | null;
+  questions: string | null;
 }
 
 /** GET /applications : le vrai suivi (aelyn_career.applications), la
@@ -324,7 +326,7 @@ export function getApplications(status?: ApplicationStatus): Promise<ApiApplicat
  * n'ajoute que la note. */
 export function updateApplication(
   offerId: string,
-  patch: { status?: ApplicationStatus; note?: string }
+  patch: { status?: ApplicationStatus; note?: string; description?: string }
 ): Promise<ApiApplication> {
   return request(`/applications/${offerId}`, { method: "PATCH", body: patch });
 }
@@ -335,6 +337,38 @@ export function updateApplication(
  * suivi local. */
 export function deleteApplication(offerId: string): Promise<void> {
   return request(`/applications/${offerId}`, { method: "DELETE" });
+}
+
+export interface CheckRepliesResult {
+  checked: number;
+  found: ApiApplication[];
+}
+
+/** POST /applications/check-replies : relit les mails récents (lus ou
+ * non, cf. le backend) pour y chercher des réponses de recruteurs et
+ * met à jour le suivi en conséquence. Idempotent côté coût LLM : un
+ * mail déjà vu lors d'un appel précédent n'est jamais retraité (cf.
+ * `check_application_replies`), donc rappeler cette fonction plusieurs
+ * fois (bouton "Actualiser") ne refacture jamais le même mail. */
+export function checkApplicationReplies(days = 30): Promise<CheckRepliesResult> {
+  return request(`/applications/check-replies?days=${days}`, {
+    method: "POST",
+    timeoutMs: 180_000,
+  });
+}
+
+/** POST /applications/{offer_id}/questions : génère (ou régénère) les
+ * questions à poser au recruteur pour cette candidature. `description`,
+ * si fourni, remplace d'abord le texte de l'offre déjà enregistré. */
+export function generateApplicationQuestions(
+  offerId: string,
+  description?: string
+): Promise<ApiApplication> {
+  return request(`/applications/${offerId}/questions`, {
+    method: "POST",
+    body: { description },
+    timeoutMs: 150_000,
+  });
 }
 
 // ---- Media (TV) -------------------------------------------------------

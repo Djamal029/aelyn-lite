@@ -25,6 +25,7 @@ from aelyn_career.job_sources import expand_domain_terms
 from aelyn_career.models import CVContent, CVExperience, CVProjet
 from aelyn_career.profil_manager import ProfilManager, load_profil_json
 from aelyn_career.prompts import (
+    SYSTEM_APPLICATION_QUESTIONS,
     SYSTEM_EMAIL_ENVOI,
     SYSTEM_POLISH_COVER_LETTER,
     SYSTEM_POLISH_CV_BULLETS,
@@ -1052,6 +1053,24 @@ class ApplicationWriter:
         except Exception:
             logger.warning("Polish LLM de la lettre échoué, repli déterministe")
         return letter
+
+    def generate_interview_questions(
+        self, *, title: str, company: str | None, description: str | None = None
+    ) -> str:
+        """Questions à poser au recruteur pour CETTE offre : débouchés
+        réels, parcours des anciens stagiaires, critères de recrutement
+        (cf. `SYSTEM_APPLICATION_QUESTIONS`), jamais une simple
+        vérification de compréhension du poste. Génération libre (pas de
+        schéma structuré) : une liste de phrases n'a pas besoin d'un
+        format imposé, et le texte libre laisse le LLM mieux adapter sa
+        formulation au contexte précis de l'offre."""
+        contexte = f"Intitulé : {title}\nEntreprise : {company or 'non précisée'}"
+        if description:
+            contexte += f"\nDescription :\n{description[:3000]}"
+        return self.llm.text(
+            system=SYSTEM_APPLICATION_QUESTIONS.format(user_name=settings.user_name),
+            user=contexte,
+        )
 
     @staticmethod
     def contact_header() -> str:

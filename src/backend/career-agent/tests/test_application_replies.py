@@ -149,3 +149,83 @@ def test_check_application_replies_records_journal_entry(tmp_path):
     entries = journal.since(hours=1, agent="career")
     assert len(entries) == 1
     assert entries[0].action == "reponse_candidature"
+
+
+def test_check_application_replies_skips_already_processed_mail_on_second_call(tmp_path):
+    """Le bug que corrige le dédoublonnage : un deuxième appel (ex.
+    bouton "actualiser") avec le MÊME mail ne doit ni rappeler le LLM,
+    ni ajouter une deuxième fois la même note."""
+    from aelyn.core.journal import Journal
+
+    store = ApplicationsStore(tmp_path / "apps.db")
+    store.record(offer_id="phosphea-1", title="Stagiaire Biostatistiques H/F", company="Phosphea")
+    journal = Journal(tmp_path / "journal.db")
+
+    llm = Mock()
+    llm.structured.return_value = ReplyAnalysis(
+        est_reponse_candidature=True,
+        issue=ReplyOutcome.ENTRETIEN,
+        resume="Demande de créneau.",
+    )
+
+    mail = _mail()
+    first = check_application_replies(store, llm, [mail], journal=journal)
+    second = check_application_replies(store, llm, [mail], journal=journal)
+
+    assert len(first) == 1
+    assert second == []
+    llm.structured.assert_called_once()
+
+    stored = store.get("phosphea-1")
+    assert stored.notes.count("Demande de créneau") == 1
+
+
+def test_check_application_replies_skips_already_processed_non_relevant_mail(tmp_path):
+    """Un mail classé non pertinent une première fois ne doit pas
+    redéclencher d'appel LLM au prochain passage non plus."""
+    from aelyn.core.journal import Journal
+
+    store = ApplicationsStore(tmp_path / "apps.db")
+    store.record(offer_id="phosphea-1", title="Stagiaire Biostatistiques H/F", company="Phosphea")
+    journal = Journal(tmp_path / "journal.db")
+
+    llm = Mock()
+    llm.structured.return_value = ReplyAnalysis(
+        est_reponse_candidature=False,
+        issue=ReplyOutcome.NON_PERTINENT,
+        resume="Sans rapport.",
+    )
+
+    mail = _mail()
+    check_application_replies(store, llm, [mail], journal=journal)
+    check_application_replies(store, llm, [mail], journal=journal)
+
+    llm.structured.assert_called_once()
+
+
+def test_check_application_replies_retries_mail_after_llm_failure(tmp_path):
+    """Un échec LLM (transitoire) ne doit jamais marquer un mail comme
+    définitivement vu : il doit rester candidat au prochain appel."""
+    from aelyn.core.llm import LLMError
+    from aelyn.core.journal import Journal
+
+    store = ApplicationsStore(tmp_path / "apps.db")
+    store.record(offer_id="phosphea-1", title="Stagiaire Biostatistiques H/F", company="Phosphea")
+    journal = Journal(tmp_path / "journal.db")
+
+    llm = Mock()
+    llm.structured.side_effect = LLMError("indisponible")
+
+    mail = _mail()
+    check_application_replies(store, llm, [mail], journal=journal)
+
+    llm.structured.side_effect = None
+    llm.structured.return_value = ReplyAnalysis(
+        est_reponse_candidature=True,
+        issue=ReplyOutcome.ENTRETIEN,
+        resume="Demande de créneau.",
+    )
+    results = check_application_replies(store, llm, [mail], journal=journal)
+
+    assert len(results) == 1
+    assert llm.structured.call_count == 2

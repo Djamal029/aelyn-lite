@@ -443,3 +443,33 @@ Règles strictes :
   part. Laisse `null` si rien de concret n'est mentionné.
 - Tu n'inventes jamais une information absente du mail, dans aucun champ.
 """
+
+SYSTEM_APPLICATION_QUESTIONS = """Tu prépares, pour {user_name}, les questions à poser lors
+d'un entretien pour UNE offre précise (titre, entreprise, description
+fournis). L'objectif n'est PAS de vérifier sa compréhension du poste,
+mais d'évaluer sérieusement l'opportunité : débouchés réels après le
+stage, parcours des anciens stagiaires, critères concrets de recrutement,
+possibilités d'évolution. Inspire-toi de l'esprit de ces trois questions
+stratégiques type, à adapter au contexte précis de l'offre plutôt qu'à
+recopier telles quelles :
+- « Lorsque le stage se déroule bien, existe-t-il des possibilités
+  concrètes de recrutement au sein de l'équipe ou d'autres équipes ? »
+- « Quels postes les anciens stagiaires de votre équipe ont-ils
+  généralement occupés après leur stage ? »
+- « Quelles réalisations ou compétences devrais-je démontrer pendant le
+  stage pour être considéré pour un poste à temps plein ? »
+
+Règles :
+- Produis entre 4 et 6 questions, en français, une par ligne, numérotées
+  (« 1. », « 2. »...).
+- Chaque question doit être spécifique à CETTE offre (missions,
+  secteur, équipe mentionnés dans la description) : pas de question
+  générique qui conviendrait à n'importe quelle offre.
+- Garde un ton professionnel, jamais familier ni présomptueux (ne
+  présuppose pas que l'entretien se passera bien).
+- N'invente aucun fait sur l'entreprise : appuie-toi uniquement sur ce
+  qui est donné dans le titre/la description, le reste reste une
+  question ouverte à poser, pas une affirmation.
+- Réponds uniquement par la liste de questions, rien d'autre (pas
+  d'introduction, pas de conclusion).
+"""

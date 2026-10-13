@@ -97,6 +97,26 @@ def analyze_reply(llm: LLMClient, mail: Mail) -> ReplyAnalysis | None:
         return None
 
 
+# Fenêtre large plutôt qu'un vrai "depuis toujours" : `Journal.since` ne
+# prend qu'un nombre d'heures, pas de borne infinie. 5 ans couvre tout
+# usage réel sans alourdir la requête.
+_DEDUP_WINDOW_HOURS = 24 * 365 * 5
+
+
+def _already_processed_uids(journal: Journal) -> set[str]:
+    """UID des mails déjà passés par `check_application_replies` (qu'ils
+    aient matché une candidature ou non n'a pas d'importance ici, cf.
+    appelant) : sans ce filtre, rappeler la fonction (ex. bouton
+    "actualiser" du suivi) réanalyserait et re-noterait les MÊMES mails
+    à chaque fois, en plus de refaire un appel LLM inutile par mail déjà
+    vu."""
+    return {
+        action.payload["mail_uid"]
+        for action in journal.since(hours=_DEDUP_WINDOW_HOURS, agent=AGENT_NAME)
+        if action.action == "reponse_candidature" and "mail_uid" in action.payload
+    }
+
+
 def check_application_replies(
     store: ApplicationsStore,
     llm: LLMClient,
@@ -107,10 +127,19 @@ def check_application_replies(
     """Examine `mails`, ne garde que ceux qui matchent une candidature
     suivie, les fait classifier, et met à jour `store` + journalise
     chaque résultat retenu. Ne modifie jamais `mails` lui-même ni la
-    boîte mail - purement un enrichissement du suivi."""
+    boîte mail - purement un enrichissement du suivi.
+
+    `journal`, s'il est fourni, sert aussi à ÉVITER de retraiter un mail
+    déjà vu lors d'un appel précédent (cf. `_already_processed_uids`) :
+    sans lui, chaque appel (ex. "actualiser" côté interface) repart de
+    zéro sur TOUS les mails rendus par `list_recent_or_flagged`."""
+    already_seen = _already_processed_uids(journal) if journal is not None else set()
     results: list[ApplicationReplyResult] = []
 
     for mail in mails:
+        if mail.uid in already_seen:
+            continue
+
         application = match_application(
             store, subject=mail.subject, sender=mail.sender, sender_email=mail.sender_email
         )
@@ -118,7 +147,29 @@ def check_application_replies(
             continue
 
         analysis = analyze_reply(llm, mail)
-        if analysis is None or not analysis.est_reponse_candidature:
+        if analysis is None:
+            # Échec LLM (transitoire) : jamais marqué comme vu, pour
+            # retenter au prochain appel plutôt que d'abandonner ce mail
+            # silencieusement pour toujours.
+            continue
+
+        if not analysis.est_reponse_candidature:
+            # Classé non pertinent : marqué comme vu quand même (sinon
+            # un "actualiser" répété refacturerait le même appel LLM
+            # indéfiniment sur ce mail), mais rien à rapporter.
+            if journal is not None:
+                journal.record(
+                    agent=AGENT_NAME,
+                    action="reponse_candidature",
+                    target=application.company or application.title,
+                    summary=f"{mail.subject} : non pertinent",
+                    status=ActionStatus.EXECUTED,
+                    payload={
+                        "offer_id": application.offer_id,
+                        "mail_uid": mail.uid,
+                        "issue": analysis.issue.value,
+                    },
+                )
             continue
 
         new_status = _OUTCOME_TO_STATUS.get(analysis.issue)

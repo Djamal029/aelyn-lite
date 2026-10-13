@@ -617,3 +617,32 @@ def test_period_with_duration_never_invents_a_duration_from_the_period_text():
 
 def test_period_with_duration_falls_back_to_the_given_period_when_metadata_lacks_one():
     assert _period_with_duration({}, fallback="Mai 2026") == "Mai 2026"
+
+
+def test_generate_interview_questions_passes_offer_context_to_the_llm():
+    llm = Mock()
+    llm.text.return_value = "1. Question A ?\n2. Question B ?"
+    writer = ApplicationWriter(ProfilManager(make_profile()), llm=llm)
+
+    result = writer.generate_interview_questions(
+        title="Stagiaire Biostatistiques", company="Phosphea",
+        description="Stage de 6 mois, équipe R&D, outils sous R.",
+    )
+
+    assert result == "1. Question A ?\n2. Question B ?"
+    kwargs = llm.text.call_args.kwargs
+    assert "Stagiaire Biostatistiques" in kwargs["user"]
+    assert "Phosphea" in kwargs["user"]
+    assert "équipe R&D" in kwargs["user"]
+
+
+def test_generate_interview_questions_handles_missing_description_and_company():
+    llm = Mock()
+    llm.text.return_value = "1. Question ?"
+    writer = ApplicationWriter(ProfilManager(make_profile()), llm=llm)
+
+    writer.generate_interview_questions(title="Stagiaire", company=None)
+
+    kwargs = llm.text.call_args.kwargs
+    assert "non précisée" in kwargs["user"]
+    assert "Description" not in kwargs["user"]

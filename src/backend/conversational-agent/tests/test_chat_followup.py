@@ -723,6 +723,8 @@ class TestApplicationsTracking:
             applied_ts=datetime.now(timezone.utc),
             updated_ts=datetime.now(timezone.utc),
             notes=None,
+            description=None,
+            questions=None,
         )
         defaults.update(overrides)
         return Application(**defaults)

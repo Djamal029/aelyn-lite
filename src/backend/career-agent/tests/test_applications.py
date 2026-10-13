@@ -118,3 +118,67 @@ def test_list_filters_by_status_and_orders_by_most_recently_updated(tmp_path: Pa
 def test_status_label_covers_every_status():
     for status in ApplicationStatus:
         assert status_label(status)
+
+
+def test_set_description_and_questions(tmp_path: Path):
+    store = ApplicationsStore(tmp_path / "applications.db")
+    store.record(offer_id="1", title="Data Scientist", company="ACME")
+
+    store.set_description("1", "Stage de 6 mois, modélisation statistique.")
+    updated = store.set_questions("1", "1. Débouchés après le stage ?\n2. Équipe ?")
+
+    assert updated.description == "Stage de 6 mois, modélisation statistique."
+    assert "Débouchés" in updated.questions
+
+    reloaded = store.get("1")
+    assert reloaded.description == "Stage de 6 mois, modélisation statistique."
+    assert reloaded.questions == updated.questions
+
+
+def test_set_description_returns_none_for_unknown_offer(tmp_path: Path):
+    store = ApplicationsStore(tmp_path / "applications.db")
+    assert store.set_description("inconnu", "...") is None
+    assert store.set_questions("inconnu", "...") is None
+
+
+def test_migrates_a_pre_existing_database_without_losing_data(tmp_path: Path):
+    """Bug réel évité : une base `applications.db` créée AVANT l'ajout
+    des colonnes `description`/`questions` doit continuer à fonctionner
+    (migration automatique à l'ouverture), sans perdre les lignes déjà
+    suivies."""
+    import sqlite3
+
+    db_path = tmp_path / "applications.db"
+    conn = sqlite3.connect(db_path)
+    conn.execute(
+        """
+        CREATE TABLE applications (
+            offer_id VARCHAR PRIMARY KEY,
+            title VARCHAR NOT NULL,
+            company VARCHAR,
+            status VARCHAR NOT NULL,
+            applied_ts VARCHAR NOT NULL,
+            updated_ts VARCHAR NOT NULL,
+            notes TEXT
+        )
+        """
+    )
+    conn.execute(
+        "INSERT INTO applications VALUES (?, ?, ?, ?, ?, ?, ?)",
+        ("old-1", "Stagiaire", "OldCo", "postule", "2026-01-01T00:00:00+00:00",
+         "2026-01-01T00:00:00+00:00", None),
+    )
+    conn.commit()
+    conn.close()
+
+    store = ApplicationsStore(db_path)
+    existing = store.get("old-1")
+
+    assert existing is not None
+    assert existing.title == "Stagiaire"
+    assert existing.description is None
+    assert existing.questions is None
+
+    # Et les nouvelles colonnes sont bien utilisables après migration.
+    updated = store.set_description("old-1", "Texte de l'offre récupéré après coup.")
+    assert updated.description == "Texte de l'offre récupéré après coup."

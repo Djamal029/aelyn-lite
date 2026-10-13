@@ -17,7 +17,7 @@ from datetime import datetime, timezone
 from enum import StrEnum
 from pathlib import Path
 
-from sqlalchemy import String, Text, create_engine, select
+from sqlalchemy import String, Text, create_engine, select, text
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column
 
 
@@ -59,6 +59,8 @@ class ApplicationRow(Base):
     applied_ts: Mapped[str] = mapped_column(String, nullable=False)
     updated_ts: Mapped[str] = mapped_column(String, nullable=False)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    questions: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 
 @dataclass(slots=True, frozen=True)
@@ -70,6 +72,8 @@ class Application:
     applied_ts: datetime
     updated_ts: datetime
     notes: str | None
+    description: str | None
+    questions: str | None
 
     def to_line(self) -> str:
         moment = self.applied_ts.astimezone().strftime("%d/%m")
@@ -77,13 +81,32 @@ class Application:
         return f"{moment} | {status_label(self.status):<16} | {self.title}{cible}"
 
 
+_NEW_COLUMNS = ("description", "questions")
+
+
 class ApplicationsStore:
     def __init__(self, path: Path) -> None:
         self._engine = create_engine(f"sqlite:///{path}")
         Base.metadata.create_all(self._engine)
+        self._migrate(path)
+
+    def _migrate(self, path: Path) -> None:
+        """`Base.metadata.create_all` ne crée une table que si elle
+        n'existe pas encore : une base `applications.db` déjà en place
+        (candidatures déjà suivies avant l'ajout de `description`/
+        `questions`) ne reçoit jamais ces colonnes sans ce complément.
+        `ALTER TABLE ... ADD COLUMN` est idempotent ici (on vérifie
+        d'abord via `PRAGMA table_info`), jamais destructif pour les
+        lignes existantes."""
+        with self._engine.begin() as conn:
+            existing = {row[1] for row in conn.execute(text("PRAGMA table_info(applications)"))}
+            for column in _NEW_COLUMNS:
+                if column not in existing:
+                    conn.execute(text(f"ALTER TABLE applications ADD COLUMN {column} TEXT"))
 
     def record(
-        self, *, offer_id: str, title: str, company: str | None = None
+        self, *, offer_id: str, title: str, company: str | None = None,
+        description: str | None = None,
     ) -> Application:
         """Enregistre une candidature tout juste envoyée, statut POSTULE.
         Idempotent : si `offer_id` existe déjà (ex. "envoie par mail"
@@ -102,6 +125,8 @@ class ApplicationsStore:
                 applied_ts=now,
                 updated_ts=now,
                 notes=None,
+                description=description,
+                questions=None,
             )
             session.add(row)
             session.commit()
@@ -118,6 +143,34 @@ class ApplicationsStore:
             row.updated_ts = datetime.now(timezone.utc).isoformat()
             if note:
                 row.notes = f"{row.notes}\n{note}" if row.notes else note
+            session.commit()
+            return _to_application(row)
+
+    def set_description(self, offer_id: str, description: str) -> Application | None:
+        """Enregistre/remplace le texte de l'offre (collé manuellement ou
+        récupéré d'une recherche), affiché ensuite dans le suivi -
+        `record()` ne le connaît pas forcément au moment de l'envoi
+        (ex. candidature trackée après coup, hors du flux `apply_by_mail`)."""
+        with Session(self._engine) as session:
+            row = session.get(ApplicationRow, offer_id)
+            if row is None:
+                return None
+            row.description = description
+            row.updated_ts = datetime.now(timezone.utc).isoformat()
+            session.commit()
+            return _to_application(row)
+
+    def set_questions(self, offer_id: str, questions: str) -> Application | None:
+        """Enregistre les questions à poser au recruteur, générées une
+        fois (cf. `application_questions.py`) et relues à chaque
+        affichage sans coût LLM supplémentaire tant que l'offre ne
+        change pas."""
+        with Session(self._engine) as session:
+            row = session.get(ApplicationRow, offer_id)
+            if row is None:
+                return None
+            row.questions = questions
+            row.updated_ts = datetime.now(timezone.utc).isoformat()
             session.commit()
             return _to_application(row)
 
@@ -181,4 +234,6 @@ def _to_application(row: ApplicationRow) -> Application:
         applied_ts=datetime.fromisoformat(row.applied_ts),
         updated_ts=datetime.fromisoformat(row.updated_ts),
         notes=row.notes,
+        description=row.description,
+        questions=row.questions,
     )

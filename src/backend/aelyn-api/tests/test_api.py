@@ -825,3 +825,132 @@ class TestApplications:
             app.dependency_overrides.clear()
 
         assert response.status_code == 404
+
+    def test_patch_application_sets_description(self, tmp_path) -> None:
+        from aelyn_api.deps import get_applications_store
+
+        store = self._store(tmp_path)
+        store.record(offer_id="1", title="Data Scientist", company="EDF")
+        app.dependency_overrides[get_applications_store] = lambda: store
+        try:
+            response = client.patch(
+                "/applications/1", json={"description": "Stage de 6 mois."}
+            )
+        finally:
+            app.dependency_overrides.clear()
+
+        assert response.status_code == 200
+        assert response.json()["description"] == "Stage de 6 mois."
+
+    def test_check_replies_skips_mailbox_when_no_tracked_applications(self, tmp_path) -> None:
+        from unittest.mock import patch
+
+        from aelyn_api.deps import get_applications_store
+
+        store = self._store(tmp_path)
+        app.dependency_overrides[get_applications_store] = lambda: store
+        try:
+            with patch("aelyn_api.routers.applications.list_recent_or_flagged") as mock_list:
+                response = client.post("/applications/check-replies")
+        finally:
+            app.dependency_overrides.clear()
+
+        mock_list.assert_not_called()
+        assert response.status_code == 200
+        assert response.json() == {"checked": 0, "found": []}
+
+    def test_check_replies_returns_matches_found(self, tmp_path) -> None:
+        from unittest.mock import patch
+
+        from aelyn_api.deps import get_applications_store
+        from aelyn_career.applications import ApplicationStatus
+        from aelyn_career.application_replies import ApplicationReplyResult, ReplyAnalysis, ReplyOutcome
+        from aelyn_email.models import Mail
+
+        store = self._store(tmp_path)
+        app_record = store.record(offer_id="1", title="Data Scientist", company="EDF")
+        store.update_status("1", ApplicationStatus.ENTRETIEN)
+        updated = store.get("1")
+        app.dependency_overrides[get_applications_store] = lambda: store
+
+        mail = Mail(uid="1", sender="RH", sender_email="rh@edf.fr", subject="Entretien", body="...")
+        fake_result = ApplicationReplyResult(
+            mail=mail,
+            application=updated,
+            analysis=ReplyAnalysis(
+                est_reponse_candidature=True, issue=ReplyOutcome.ENTRETIEN, resume="Demande de créneau.",
+            ),
+            status_changed=True,
+        )
+        try:
+            with (
+                patch("aelyn_api.routers.applications.list_recent_or_flagged", return_value=[mail]),
+                patch("aelyn_api.routers.applications.check_application_replies", return_value=[fake_result]),
+            ):
+                response = client.post("/applications/check-replies")
+        finally:
+            app.dependency_overrides.clear()
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body["checked"] == 1
+        assert len(body["found"]) == 1
+        assert body["found"][0]["offer_id"] == "1"
+
+    def test_check_replies_reports_mailbox_error_as_502(self, tmp_path) -> None:
+        from unittest.mock import patch
+
+        from aelyn_api.deps import get_applications_store
+        from aelyn_email.client import MailboxError
+
+        store = self._store(tmp_path)
+        store.record(offer_id="1", title="Data Scientist", company="EDF")
+        app.dependency_overrides[get_applications_store] = lambda: store
+        try:
+            with patch(
+                "aelyn_api.routers.applications.list_recent_or_flagged",
+                side_effect=MailboxError("non configurée"),
+            ):
+                response = client.post("/applications/check-replies")
+        finally:
+            app.dependency_overrides.clear()
+
+        assert response.status_code == 502
+
+    def test_generate_questions_updates_application(self, tmp_path) -> None:
+        from unittest.mock import Mock
+
+        from aelyn_api.deps import get_application_writer, get_applications_store
+
+        store = self._store(tmp_path)
+        store.record(offer_id="1", title="Stagiaire Biostatistiques", company="Phosphea")
+        writer = Mock()
+        writer.generate_interview_questions.return_value = "1. Question ?"
+        app.dependency_overrides[get_applications_store] = lambda: store
+        app.dependency_overrides[get_application_writer] = lambda: writer
+        try:
+            response = client.post(
+                "/applications/1/questions", json={"description": "Stage R&D sous R."}
+            )
+        finally:
+            app.dependency_overrides.clear()
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body["questions"] == "1. Question ?"
+        assert body["description"] == "Stage R&D sous R."
+        writer.generate_interview_questions.assert_called_once_with(
+            title="Stagiaire Biostatistiques", company="Phosphea", description="Stage R&D sous R.",
+        )
+
+    def test_generate_questions_for_unknown_offer_is_404(self, tmp_path) -> None:
+        from aelyn_api.deps import get_applications_store
+
+        store = self._store(tmp_path)
+        app.dependency_overrides[get_applications_store] = lambda: store
+        try:
+            response = client.post("/applications/unknown/questions", json={})
+        finally:
+            app.dependency_overrides.clear()
+
+        assert response.status_code == 404
