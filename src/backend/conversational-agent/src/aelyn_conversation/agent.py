@@ -44,7 +44,7 @@ from aelyn.core.config import settings
 from aelyn.core.llm import KEEP_ALIVE_OCCASIONAL, LLMClient, LLMError, is_model_available
 from aelyn.core.spinner import Spinner
 from aelyn_career.agent import run_command as career_run_command
-from aelyn_career.application_replies import check_application_replies
+from aelyn_career.application_replies import check_application_replies, extract_interview_date
 from aelyn_career.application_writer import (
     ApplicationWriter,
     format_cv_text,
@@ -254,6 +254,20 @@ _APPLICATION_QUERY_STOPWORDS = {
     "acceptée", "accepte", "accepté", "postulee", "postulée", "postule",
     "postulé",
 }
+
+# "mon entretien chez Phosphea est le 20/10 à 14h" / "je suis disponible
+# le 22 octobre pour le second entretien INSERM" : préfiltre bon marché
+# avant tout appel LLM (cf. `_try_set_interview_date`) - exige "entretien"
+# ET un signal de date/créneau, pour ne jamais partir en extraction LLM
+# sur une simple question du type "comment s'est passé mon entretien ?".
+_INTERVIEW_DATE_SIGNAL_RE = re.compile(
+    r"\d|disponib|propose|cr[ée]neau|rendez-vous|rdv", re.IGNORECASE
+)
+
+
+def _looks_like_interview_date_mention(phrase: str) -> bool:
+    lowered = phrase.lower()
+    return "entretien" in lowered and bool(_INTERVIEW_DATE_SIGNAL_RE.search(lowered))
 
 PREPARE_CV_RE = re.compile(r"\b(cv|curriculum)\b", re.IGNORECASE)
 PREPARE_LM_RE = re.compile(
@@ -1100,6 +1114,8 @@ class ConversationalAgent:
             return
         if self._try_update_application(phrase):
             return
+        if self._try_set_interview_date(phrase):
+            return
         # AVANT `_try_prepare_cv`/`_try_prepare_lm` : "envoie le CV par
         # mail" contient "cv", sans cet ordre ce serait traité comme un
         # simple aperçu chat au lieu d'un envoi réel.
@@ -1602,6 +1618,49 @@ class ConversationalAgent:
         self._say(
             f"Candidature {application.title} marquée comme "
             f"{status_label(status)}."
+        )
+        return True
+
+    def _try_set_interview_date(self, phrase: str) -> bool:
+        """« mon entretien chez Phosphea est le 20/10 à 14h » / « je suis
+        disponible le 22 octobre pour le second entretien INSERM » : note
+        la date/heure proposée pour l'entretien d'une candidature déjà
+        suivie (`ApplicationsStore.set_interview_date`). Extraction par
+        LLM (entreprise + date, jamais inventées, cf.
+        `extract_interview_date`) plutôt qu'une regex : contrairement à un
+        statut fermé (entretien/refus/relance...), une date est trop
+        libre en formulation pour un simple mot-clé. Si la phrase ne
+        contient en fait aucune date concrète (ex. l'utilisateur dit
+        seulement qu'on lui demande sa disponibilité, sans encore en
+        donner une), ne fait rien et laisse la phrase suivre son routage
+        normal - rien à enregistrer."""
+        if not _looks_like_interview_date_mention(phrase):
+            return False
+
+        proposal = extract_interview_date(self.application_writer.llm, phrase)
+        if proposal is None or not proposal.date_entretien:
+            return False
+
+        application = None
+        if proposal.entreprise:
+            application = self.applications_store.find_by_text(proposal.entreprise)
+        if application is None:
+            words = re.findall(r"\w+", phrase.lower())
+            query = " ".join(
+                w for w in words if w not in _APPLICATION_QUERY_STOPWORDS and len(w) >= 2
+            )
+            application = self.applications_store.find_by_text(query)
+        if application is None:
+            self._say(
+                "Je ne trouve pas cette candidature dans le suivi pour y "
+                "noter cette date."
+            )
+            return True
+
+        self.applications_store.set_interview_date(application.offer_id, proposal.date_entretien)
+        self._say(
+            f"Noté : entretien {application.company or application.title} "
+            f"-> {proposal.date_entretien}."
         )
         return True
 

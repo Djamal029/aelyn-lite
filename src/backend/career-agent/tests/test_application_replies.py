@@ -2,12 +2,14 @@ from unittest.mock import Mock
 
 from aelyn_career.application_replies import (
     ApplicationConfirmation,
+    InterviewDateProposal,
     ReplyAnalysis,
     ReplyOutcome,
     _looks_like_application_confirmation,
     _slugify,
     check_application_replies,
     detect_application_confirmation,
+    extract_interview_date,
     match_application,
 )
 from aelyn_career.applications import ApplicationsStore, ApplicationStatus
@@ -450,3 +452,47 @@ def test_check_application_replies_dedupes_by_title_despite_accents_and_unknown_
     tracked = store.list()
     assert len(tracked) == 1
     assert tracked[0].offer_id == "phim-ceem-sharka"
+
+
+def test_interview_date_proposal_normalizes_placeholder_entreprise_to_none():
+    proposal = InterviewDateProposal(entreprise="null", date_entretien="20/10 à 14h")
+    assert proposal.entreprise is None
+    assert proposal.date_entretien == "20/10 à 14h"
+
+
+def test_extract_interview_date_returns_none_on_llm_failure():
+    from aelyn.core.llm import LLMError
+
+    llm = Mock()
+    llm.structured.side_effect = LLMError("indisponible")
+
+    assert extract_interview_date(llm, "mon entretien chez Phosphea est le 20/10") is None
+
+
+def test_extract_interview_date_returns_parsed_proposal():
+    llm = Mock()
+    llm.structured.return_value = InterviewDateProposal(
+        entreprise="Phosphea", date_entretien="20/10 à 14h"
+    )
+
+    proposal = extract_interview_date(llm, "mon entretien chez Phosphea est le 20/10 à 14h")
+
+    assert proposal is not None
+    assert proposal.entreprise == "Phosphea"
+    assert proposal.date_entretien == "20/10 à 14h"
+
+
+def test_interview_date_proposal_discards_a_date_entretien_with_no_real_date():
+    """Bug réel observé en direct : pour "on me demande ma disponibilité
+    pour le second entretien" (AUCUNE date dans la phrase), le LLM a
+    renvoyé `date_entretien="second entretien"` - un simple rappel du
+    contexte, pas une date - qui a ÉCRASÉ une date déjà enregistrée. Garde-
+    fou déterministe : sans chiffre/mois/jour de semaine/"demain" dans la
+    valeur elle-même, `date_entretien` est ramené à `None`."""
+    proposal = InterviewDateProposal(entreprise="Phosphea", date_entretien="second entretien")
+    assert proposal.date_entretien is None
+
+
+def test_interview_date_proposal_keeps_a_date_entretien_with_a_weekday_but_no_digit():
+    proposal = InterviewDateProposal(entreprise="Phosphea", date_entretien="lundi prochain")
+    assert proposal.date_entretien == "lundi prochain"

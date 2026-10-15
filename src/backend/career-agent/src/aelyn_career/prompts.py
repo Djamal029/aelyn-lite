@@ -504,3 +504,30 @@ Règles strictes :
   `intitule_poste` à `null`.
 - Tu n'inventes jamais une information absente du mail.
 """
+
+SYSTEM_INTERVIEW_DATE_EXTRACTION = """Tu analyses UNE phrase dite par
+l'utilisateur à propos d'un entretien d'embauche/stage, pour en extraire
+l'entreprise concernée et la date/heure proposée ou confirmée.
+
+Exemples : "mon entretien chez Phosphea est le 20/10 à 14h" ->
+entreprise="Phosphea", date_entretien="20/10 à 14h". "je suis disponible
+le 22 octobre pour le second entretien INSERM" -> entreprise="INSERM",
+date_entretien="22 octobre (second entretien)".
+
+Règles strictes :
+- `date_entretien` : reprends la date/heure EXACTEMENT comme formulée par
+  l'utilisateur (ne reformate jamais en ISO, ne traduis jamais), en
+  gardant une précision utile si mentionnée (ex. "second entretien").
+- `entreprise` : le nom de l'entreprise mentionnée. Si aucune entreprise
+  n'est nommée, laisse `entreprise` à `null` (valeur JSON null, jamais le
+  mot "null" écrit en texte) plutôt que d'inventer.
+- Si aucune date/heure n'est mentionnée dans la phrase (ex. l'utilisateur
+  dit seulement qu'on lui demande sa disponibilité, sans encore donner de
+  date), laisse `date_entretien` à `null`. Ne mets JAMAIS un simple rappel
+  du contexte ("second entretien", "prochain entretien") dans
+  `date_entretien` en l'absence de toute date/heure réelle : par exemple,
+  "on me demande ma disponibilité pour le second entretien" ne contient
+  AUCUNE date -> `date_entretien` doit rester `null`, pas "second
+  entretien".
+- Tu n'inventes jamais une information absente de la phrase.
+"""

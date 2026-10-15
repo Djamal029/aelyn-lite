@@ -862,3 +862,99 @@ class TestApplicationsTracking:
             agent.handle_message("vérifie les réponses à mes candidatures")
 
         mock_query.assert_not_called()
+
+    def test_set_interview_date_by_company_match(self, agent):
+        """« mon entretien chez Phosphea est le 20/10 à 14h » : extrait
+        l'entreprise et la date via le LLM (cf. `extract_interview_date`),
+        retrouve la candidature suivie correspondante, enregistre la date."""
+        from aelyn_career.application_replies import InterviewDateProposal
+
+        app = self._make_application(company="Phosphea")
+        agent.applications_store.find_by_text.return_value = app
+        agent.application_writer.llm.structured.return_value = InterviewDateProposal(
+            entreprise="Phosphea", date_entretien="20/10 à 14h"
+        )
+
+        result = agent.handle_message("mon entretien chez Phosphea est le 20/10 à 14h")
+
+        agent.applications_store.set_interview_date.assert_called_once_with(
+            app.offer_id, "20/10 à 14h"
+        )
+        assert "Phosphea" in result.text
+        assert "20/10 à 14h" in result.text
+
+    def test_set_interview_date_falls_back_to_keyword_query_without_entreprise(self, agent):
+        """Le LLM n'a pas pu identifier d'entreprise dans la phrase (ex.
+        "mon entretien est fixé au 20/10", sans nom d'entreprise explicite) :
+        repli sur la même recherche par mots-clés que `_try_update_application`."""
+        from aelyn_career.application_replies import InterviewDateProposal
+
+        app = self._make_application(company="Phosphea")
+        agent.applications_store.find_by_text.return_value = app
+        agent.application_writer.llm.structured.return_value = InterviewDateProposal(
+            entreprise=None, date_entretien="20/10"
+        )
+
+        result = agent.handle_message("mon entretien chez Phosphea est fixé au 20/10")
+
+        agent.applications_store.set_interview_date.assert_called_once_with(
+            app.offer_id, "20/10"
+        )
+        assert "20/10" in result.text
+
+    def test_set_interview_date_does_nothing_without_a_concrete_date(self, agent):
+        """« on me demande ma disponibilité pour le second entretien » :
+        aucune date concrète dans la phrase -> ne doit RIEN enregistrer, et
+        rend la main (`False`) pour laisser la phrase suivre son routage
+        normal. Appel direct du handler (pas `handle_message`) : un `False`
+        fait retomber jusqu'au routage LLM générique, non pertinent ici et
+        non mocké dans ce fichier de tests."""
+        from aelyn_career.application_replies import InterviewDateProposal
+
+        agent.application_writer.llm.structured.return_value = InterviewDateProposal(
+            entreprise="Phosphea", date_entretien=None
+        )
+
+        handled = agent._try_set_interview_date(
+            "on me demande ma disponibilité pour le second entretien Phosphea"
+        )
+
+        assert handled is False
+        agent.applications_store.set_interview_date.assert_not_called()
+        agent.applications_store.find_by_text.assert_not_called()
+
+    def test_set_interview_date_reports_when_application_not_found(self, agent):
+        from aelyn_career.application_replies import InterviewDateProposal
+
+        agent.applications_store.find_by_text.return_value = None
+        agent.application_writer.llm.structured.return_value = InterviewDateProposal(
+            entreprise="Inconnue", date_entretien="20/10"
+        )
+
+        result = agent.handle_message("mon entretien chez Inconnue est le 20/10")
+
+        agent.applications_store.set_interview_date.assert_not_called()
+        assert "ne trouve pas" in result.text
+
+    def test_set_interview_date_does_nothing_when_llm_unavailable(self, agent):
+        # Appel direct du handler, même raison que le test précédent : un
+        # `False` fait retomber jusqu'au routage LLM générique non mocké ici.
+        from aelyn.core.llm import LLMError
+
+        agent.application_writer.llm.structured.side_effect = LLMError("indisponible")
+
+        handled = agent._try_set_interview_date("mon entretien chez Phosphea est le 20/10 à 14h")
+
+        assert handled is False
+        agent.applications_store.set_interview_date.assert_not_called()
+
+    def test_set_interview_date_is_not_caught_by_update_application(self, agent):
+        # "marque ma candidature..." (sans date) doit rester intercepté
+        # par `_try_update_application` (ordre de dispatch), jamais
+        # partir en extraction LLM de date.
+        with patch.object(agent, "_try_set_interview_date") as mock_date:
+            app = self._make_application()
+            agent.applications_store.find_by_text.return_value = app
+            agent.handle_message("marque ma candidature chez EDF comme entretien")
+
+        mock_date.assert_not_called()

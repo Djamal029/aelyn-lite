@@ -23,7 +23,11 @@ from pydantic import BaseModel, Field, field_validator
 from aelyn.core.journal import ActionStatus, Journal
 from aelyn.core.llm import LLMClient, LLMError
 from aelyn_career.applications import Application, ApplicationsStore, ApplicationStatus
-from aelyn_career.prompts import SYSTEM_APPLICATION_CONFIRMATION, SYSTEM_APPLICATION_REPLY
+from aelyn_career.prompts import (
+    SYSTEM_APPLICATION_CONFIRMATION,
+    SYSTEM_APPLICATION_REPLY,
+    SYSTEM_INTERVIEW_DATE_EXTRACTION,
+)
 from aelyn_email.models import Mail
 
 logger = logging.getLogger(__name__)
@@ -155,6 +159,19 @@ def analyze_reply(llm: LLMClient, mail: Mail) -> ReplyAnalysis | None:
         return None
 
 
+def _blank_placeholder_to_none(value: str | None) -> str | None:
+    """Un LLM écrit parfois le mot "null"/"none" en texte plutôt que la
+    valeur JSON `null` elle-même (observé en direct : un mail de
+    confirmation qui ne nomme jamais l'employeur réel a produit
+    `entreprise="null"`, une chaîne non vide donc jamais filtrée par un
+    simple `if not ...` - qui a fini par créer un doublon de candidature
+    avec une entreprise "null" affichée). Réutilisé par tout modèle
+    d'extraction LLM de ce module, pas seulement `ApplicationConfirmation`."""
+    if isinstance(value, str) and value.strip().lower() in {"null", "none", "n/a", ""}:
+        return None
+    return value
+
+
 class ApplicationConfirmation(BaseModel):
     """Ce que le LLM doit produire pour un mail candidat à une NOUVELLE
     candidature (par opposition à `ReplyAnalysis`, qui suppose une
@@ -164,16 +181,49 @@ class ApplicationConfirmation(BaseModel):
     entreprise: str | None = None
     intitule_poste: str | None = None
 
-    # Un LLM écrit parfois le mot "null"/"none" en texte plutôt que la
-    # valeur JSON `null` elle-même (observé en direct : un mail de
-    # confirmation qui ne nomme jamais l'employeur réel a produit
-    # `entreprise="null"`, une chaîne non vide donc jamais filtrée par
-    # `if not confirmation.entreprise` plus bas - qui a fini par créer un
-    # doublon de candidature avec une entreprise "null" affichée).
     @field_validator("entreprise", "intitule_poste", mode="before")
     @classmethod
-    def _blank_placeholder_to_none(cls, value: str | None) -> str | None:
-        if isinstance(value, str) and value.strip().lower() in {"null", "none", "n/a", ""}:
+    def _validate_placeholders(cls, value: str | None) -> str | None:
+        return _blank_placeholder_to_none(value)
+
+
+# Garde-fou déterministe en plus du LLM (même esprit que
+# `_blank_placeholder_to_none`) : observé en direct, le LLM extrait
+# parfois un simple RAPPEL du contexte ("second entretien", "prochain
+# entretien") comme `date_entretien`, même en l'absence de toute
+# date/heure réelle dans la phrase (ex. "on me demande ma disponibilité
+# pour le second entretien" - aucune date proposée) - ce qui écrasait une
+# date déjà enregistrée avec un texte inutile. Exige un vrai signal de
+# date/heure dans la valeur elle-même (chiffre, mois, jour de semaine,
+# "demain"...) plutôt que de faire confiance au jugement du LLM seul.
+_CONCRETE_DATE_RE = re.compile(
+    r"\d|janvier|f[ée]vrier|mars|avril|mai|juin|juillet|ao[ûu]t|septembre|"
+    r"octobre|novembre|d[ée]cembre|"
+    r"lundi|mardi|mercredi|jeudi|vendredi|samedi|dimanche|"
+    r"demain|aujourd|ce soir|matin|apr[èe]s.midi",
+    re.IGNORECASE,
+)
+
+
+class InterviewDateProposal(BaseModel):
+    """Ce que le LLM doit extraire d'une phrase dite en chat/voix à propos
+    d'un entretien (ex. "mon entretien chez Phosphea est le 20/10 à
+    14h") : quelle candidature suivie est concernée, et la date/heure
+    proposée telle que formulée par l'utilisateur."""
+
+    entreprise: str | None = None
+    date_entretien: str | None = None
+
+    @field_validator("entreprise", mode="before")
+    @classmethod
+    def _validate_entreprise(cls, value: str | None) -> str | None:
+        return _blank_placeholder_to_none(value)
+
+    @field_validator("date_entretien", mode="before")
+    @classmethod
+    def _validate_date_entretien(cls, value: str | None) -> str | None:
+        value = _blank_placeholder_to_none(value)
+        if value is not None and not _CONCRETE_DATE_RE.search(value):
             return None
         return value
 
@@ -208,6 +258,20 @@ def detect_application_confirmation(
         )
     except LLMError:
         logger.exception("Détection de confirmation de candidature impossible pour %s", mail.uid)
+        return None
+
+
+def extract_interview_date(llm: LLMClient, phrase: str) -> InterviewDateProposal | None:
+    """`None` si le LLM est indisponible (même logique que
+    `analyze_reply`/`detect_application_confirmation`)."""
+    try:
+        return llm.structured(
+            schema=InterviewDateProposal,
+            system=SYSTEM_INTERVIEW_DATE_EXTRACTION,
+            user=phrase,
+        )
+    except LLMError:
+        logger.exception("Extraction de date d'entretien impossible pour : %s", phrase)
         return None
 
 
