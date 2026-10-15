@@ -39,6 +39,23 @@ for arg in "$@"; do
   esac
 done
 
+# Nettoyage unique (un seul `trap ... EXIT` pour tout le script, jamais
+# écrasé/effacé par un second `trap` ailleurs - bug réel rencontré en
+# écrivant ce script, où un trap posé plus loin pour un fichier temporaire
+# remplaçait silencieusement celui-ci) : supprime le fichier temporaire du
+# collage de profil.json s'il existe encore, ET restaure les deux
+# pyproject.toml réécrits pour le GPU (cf. step 2) vers leur placeholder
+# d'origine, quoi qu'il arrive (succès, erreur, Ctrl+C).
+PASTE_FILE=""
+TORCH_INDEX_PROJECTS=()
+_cleanup() {
+  [[ -n "$PASTE_FILE" ]] && rm -f "$PASTE_FILE"
+  for proj in "${TORCH_INDEX_PROJECTS[@]}"; do
+    [[ -f "$proj.bak" ]] && mv -f "$proj.bak" "$proj"
+  done
+}
+trap _cleanup EXIT
+
 # ---------------------------------------------------------- 0. langue du script
 #
 # Langue d'AFFICHAGE DE CE SCRIPT uniquement : AELYN lui-même (prompts LLM,
@@ -365,10 +382,22 @@ fi
 # en ont besoin (career-agent et security-agent, cf. leurs commentaires) :
 # pas une fonctionnalité uv native (cf. ces mêmes commentaires), un simple
 # remplacement de texte, robuste et sans dépendance supplémentaire.
-for proj in "$BACKEND_DIR/career-agent/pyproject.toml" "$BACKEND_DIR/security-agent/pyproject.toml"; do
+#
+# Restauré vers le PLACEHOLDER (pas vers une vraie valeur d'index) quoi
+# qu'il arrive ensuite, via `_cleanup` (trap EXIT unique du script, cf. sa
+# définition) : bug réel et RÉCURRENT (déjà corrigé une fois dans
+# security-agent/pyproject.toml, cf. son commentaire, puis régressé) - sans
+# cette restauration, le fichier reste modifié dans l'arbre de travail
+# après l'install, prêt à être commité par erreur (`git add -A`) avec la
+# valeur CUDA/CPU propre à CETTE machine, cassant l'auto-détection GPU
+# pour tout le monde d'autre tant que personne ne s'en aperçoit.
+TORCH_INDEX_PROJECTS=(
+  "$BACKEND_DIR/career-agent/pyproject.toml"
+  "$BACKEND_DIR/security-agent/pyproject.toml"
+)
+for proj in "${TORCH_INDEX_PROJECTS[@]}"; do
   if grep -q "AELYN_TORCH_INDEX" "$proj"; then
     sed -i.bak "s/{ index = \"AELYN_TORCH_INDEX\" }/{ index = \"$GPU_INDEX\" }/" "$proj"
-    rm -f "$proj.bak"
   fi
 done
 
@@ -546,7 +575,6 @@ if $PROFIL_IS_DEFAULT || $RECONFIGURE; then
   echo "$(t profil_paste_prompt)"
 
   PASTE_FILE="$(mktemp)"
-  trap 'rm -f "$PASTE_FILE"' EXIT
   SKIP_PROFIL=false
   FIRST_LINE=true
   while IFS= read -r line; do
@@ -589,7 +617,7 @@ print('OK')
     fi
   fi
   rm -f "$PASTE_FILE"
-  trap - EXIT
+  PASTE_FILE=""
 else
   echo "$(t profil_already_customized)"
 fi

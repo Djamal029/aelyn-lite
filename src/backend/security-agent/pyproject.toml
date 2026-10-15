@@ -32,5 +32,5 @@ aelyn = { workspace = true }
 # l'index CUDA 13.0 en dur, et bloquait la résolution de TOUT le workspace
 # (une seule et même source doit être choisie pour `torch` sur l'ensemble
 # du workspace) même après avoir corrigé career-agent seul.
-torch = { index = "pytorch-cu130" }
-torchvision = { index = "pytorch-cu130" }
+torch = { index = "AELYN_TORCH_INDEX" }
+torchvision = { index = "AELYN_TORCH_INDEX" }

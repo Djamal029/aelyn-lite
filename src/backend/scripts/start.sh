@@ -16,6 +16,19 @@ if [[ ! -f "$BACKEND_DIR/.env" ]]; then
   exit 1
 fi
 
+# Auto-guérison : une installation interrompue avant l'étape 7/8
+# (ex. abandonnée en plein milieu du collage interactif de profil.json,
+# cf. install.sh) laisse `node_modules` absent - sans ce complément,
+# `npm run dev` échoue avec un cryptique "'vite' n'est pas reconnu" au
+# lieu d'un message clair, et l'utilisateur ne sait pas quoi faire (bug
+# réel rencontré par un utilisateur). `uv run` fait déjà de même
+# implicitement pour les dépendances Python (sync automatique au premier
+# lancement), rien d'équivalent n'existe côté npm.
+if [[ ! -d "$FRONTEND_DIR/node_modules" ]]; then
+  echo "Dépendances frontend absentes (installation précédente interrompue ?) - installation automatique..."
+  (cd "$FRONTEND_DIR" && npm install)
+fi
+
 (cd "$BACKEND_DIR" && exec uv run uvicorn aelyn_api.main:app --port "$BACKEND_PORT" --app-dir aelyn-api/src) &
 BACKEND_PID=$!
 

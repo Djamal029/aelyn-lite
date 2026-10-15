@@ -12,6 +12,23 @@ if (-not (Test-Path (Join-Path $BackendDir ".env"))) {
     exit 1
 }
 
+# Auto-guerison : une installation interrompue avant l'etape 7/8 (ex.
+# abandonnee en plein milieu du collage interactif de profil.json, cf.
+# install.ps1) laisse node_modules absent - sans ce complement, "npm run
+# dev" echoue avec un cryptique "'vite' n'est pas reconnu" au lieu d'un
+# message clair (bug reel rencontre par un utilisateur). `uv run` fait
+# deja de meme implicitement pour les dependances Python (sync
+# automatique au premier lancement), rien d'equivalent n'existe cote npm.
+if (-not (Test-Path (Join-Path $FrontendDir "node_modules"))) {
+    Write-Host "Dependances frontend absentes (installation precedente interrompue ?) - installation automatique..."
+    Push-Location $FrontendDir
+    try {
+        & npm.cmd install
+    } finally {
+        Pop-Location
+    }
+}
+
 # `Start-Process -PassThru` (pas `Start-Job`) : un PID de process reel et
 # fiable directement, sans la couche job PowerShell qui peut laisser des
 # processus enfants orphelins au nettoyage.

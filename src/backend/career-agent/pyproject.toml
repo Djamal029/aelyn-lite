@@ -42,4 +42,4 @@ aelyn-email = { workspace = true }
 # et même ainsi la résolution universelle du workspace restait en échec.
 # Un simple remplacement de texte avant sync est beaucoup plus robuste
 # qu'une fonctionnalité uv qui ne s'est pas comportée comme documenté ici.
-torch = { index = "pytorch-cu130" }
+torch = { index = "AELYN_TORCH_INDEX" }
