@@ -44,7 +44,8 @@ $Messages = @{
         info_installing_uv = "uv introuvable, installation automatique en cours..."
         err_ollama_missing = "Ollama est introuvable. Installe-le : https://ollama.com/download"
         err_ollama_down = "Ollama est installe mais ne repond pas. Lance 'ollama serve' dans un autre terminal puis relance ce script."
-        err_npm = "npm est introuvable. Installe Node.js : https://nodejs.org"
+        err_npm = "npm reste introuvable meme apres une tentative d'installation automatique (winget absent, pas d'acces internet, ou installation refusee). Installe Node.js a la main : https://nodejs.org, puis relance ce script."
+        info_installing_node = "npm/Node.js introuvable, installation automatique en cours (winget)..."
         warn_espeak = "espeak-ng introuvable (voix Kokoro indisponible sans lui)."
         warn_espeak_win = "winget install eSpeak-NG.eSpeak-NG -- sinon relance avec -NoVoice."
         gpu_found = "GPU NVIDIA detecte :"
@@ -121,7 +122,8 @@ $Messages = @{
         info_installing_uv = "uv not found, installing it automatically..."
         err_ollama_missing = "Ollama not found. Install it: https://ollama.com/download"
         err_ollama_down = "Ollama is installed but not responding. Run 'ollama serve' in another terminal, then re-run this script."
-        err_npm = "npm not found. Install Node.js: https://nodejs.org"
+        err_npm = "npm still not found even after attempting to install it automatically (winget missing, no internet access, or the install was declined). Install Node.js by hand: https://nodejs.org, then re-run this script."
+        info_installing_node = "npm/Node.js not found, installing it automatically (winget)..."
         warn_espeak = "espeak-ng not found (Kokoro voice unavailable without it)."
         warn_espeak_win = "winget install eSpeak-NG.eSpeak-NG -- or re-run with -NoVoice."
         gpu_found = "NVIDIA GPU detected:"
@@ -225,7 +227,21 @@ try {
 Write-Host "  ollama : $(ollama --version 2>&1 | Select-Object -First 1)"
 
 if (-not (Get-Command npm -ErrorAction SilentlyContinue)) {
-    Fail (T "err_npm")
+    if (Get-Command winget -ErrorAction SilentlyContinue) {
+        Warn (T "info_installing_node")
+        try {
+            winget install --id OpenJS.NodeJS.LTS -e --silent `
+                --accept-package-agreements --accept-source-agreements | Out-Null
+        } catch {}
+        # Meme raisonnement que pour `uv` plus haut : winget met a jour le
+        # PATH systeme pour les PROCHAINS terminaux, jamais repris par
+        # CETTE session deja demarree - complete le PATH de cette
+        # execution plutot que de forcer un redemarrage de terminal.
+        $env:PATH = "$env:ProgramFiles\nodejs;$env:PATH"
+    }
+    if (-not (Get-Command npm -ErrorAction SilentlyContinue)) {
+        Fail (T "err_npm")
+    }
 }
 Write-Host "  npm : $(npm --version)"
 

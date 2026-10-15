@@ -77,7 +77,8 @@ t() {
       info_installing_ollama) echo "Ollama not found, installing it automatically (Linux only)..." ;;
       err_ollama_missing) echo "Ollama still not found (automatic install failed or was not attempted: it needs sudo on Linux, or winget on Windows). Install it by hand: https://ollama.com/download, then re-run this script." ;;
       err_ollama_down) echo "Ollama is installed but not responding. Run 'ollama serve' in another terminal, then re-run this script." ;;
-      err_npm) echo "npm not found. Install Node.js: https://nodejs.org" ;;
+      err_npm) echo "npm still not found (automatic install failed or was not attempted: it needs apt/brew on Linux/macOS, or winget on Windows). Install Node.js by hand: https://nodejs.org, then re-run this script." ;;
+      info_installing_node) echo "npm/Node.js not found, installing it automatically..." ;;
       warn_espeak) echo "espeak-ng not found (Kokoro voice unavailable without it)." ;;
       warn_espeak_win) echo "Windows: winget install eSpeak-NG.eSpeak-NG — or re-run with --no-voice." ;;
       warn_portaudio_linux) echo "PortAudio dev headers not found: PyAudio (voice) is likely to fail to compile. Install it first, e.g. 'sudo apt install portaudio19-dev python3-dev' on Debian/Ubuntu (or your distro's equivalent), then re-run. If you skip this, the install will still complete, just without voice (see step 5/8)." ;;
@@ -159,7 +160,8 @@ t() {
       info_installing_ollama) echo "Ollama introuvable, installation automatique en cours (Linux uniquement)..." ;;
       err_ollama_missing) echo "Ollama reste introuvable (l'install automatique a échoué ou n'a pas été tentée : elle demande sudo sur Linux, ou winget sur Windows). Installe-le à la main : https://ollama.com/download, puis relance ce script." ;;
       err_ollama_down) echo "Ollama est installé mais ne répond pas. Lance 'ollama serve' dans un autre terminal puis relance ce script." ;;
-      err_npm) echo "npm est introuvable. Installe Node.js : https://nodejs.org" ;;
+      err_npm) echo "npm reste introuvable (l'install automatique a échoué ou n'a pas été tentée : elle demande apt/brew sur Linux/macOS, ou winget sur Windows). Installe Node.js à la main : https://nodejs.org, puis relance ce script." ;;
+      info_installing_node) echo "npm/Node.js introuvable, installation automatique en cours..." ;;
       warn_espeak) echo "espeak-ng introuvable (voix Kokoro indisponible sans lui)." ;;
       warn_espeak_win) echo "Windows : winget install eSpeak-NG.eSpeak-NG — sinon relance avec --no-voice." ;;
       warn_portaudio_linux) echo "En-têtes de dev PortAudio introuvables : PyAudio (voix) risque d'échouer à compiler. Installe-les d'abord, ex. 'sudo apt install portaudio19-dev python3-dev' sur Debian/Ubuntu (ou l'équivalent de ta distribution), puis relance. Si tu ignores ce message, l'installation ira quand même au bout, juste sans la voix (voir étape 5/8)." ;;
@@ -287,8 +289,26 @@ fi
 echo "  ollama : $(ollama --version 2>&1 | head -n1)"
 
 if ! command -v npm >/dev/null 2>&1; then
-  err "$(t err_npm)"
-  exit 1
+  # Même structure que l'auto-install Ollama ci-dessus : apt (Linux) et
+  # brew (macOS) ont tous les deux un mode silencieux fiable, winget
+  # pareil sous Windows (préféré ici à nvm, qui demanderait en plus un
+  # `nvm use` manuel après coup pour activer une version).
+  if [ "$(uname -s 2>/dev/null)" = "Linux" ] && command -v apt-get >/dev/null 2>&1; then
+    warn "$(t info_installing_node)"
+    sudo apt-get install -y nodejs npm || true
+  elif [ "$(uname -s 2>/dev/null)" = "Darwin" ] && command -v brew >/dev/null 2>&1; then
+    warn "$(t info_installing_node)"
+    brew install node || true
+  elif command -v winget >/dev/null 2>&1; then
+    warn "$(t info_installing_node)"
+    winget install --id OpenJS.NodeJS.LTS -e --silent \
+      --accept-package-agreements --accept-source-agreements || true
+    export PATH="/c/Program Files/nodejs:$PATH"
+  fi
+  if ! command -v npm >/dev/null 2>&1; then
+    err "$(t err_npm)"
+    exit 1
+  fi
 fi
 echo "  npm : $(npm --version)"
 
