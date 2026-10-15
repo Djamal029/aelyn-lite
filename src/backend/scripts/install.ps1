@@ -194,29 +194,7 @@ function T($Key) { $Messages[$LangChoice][$Key] }
 function Say($msg) { Write-Host "`n$msg" -ForegroundColor Cyan }
 function Warn($msg) { Write-Host "! $msg" -ForegroundColor Yellow }
 
-# Contenu ORIGINAL (avec le placeholder AELYN_TORCH_INDEX) de chaque
-# pyproject.toml reecrit a l'etape 2, pour pouvoir le restaurer quoi qu'il
-# arrive ensuite (succes, erreur via Fail, exception non interceptee) :
-# bug reel et RECURRENT (deja corrige une fois dans
-# security-agent/pyproject.toml, cf. son commentaire, puis regresse) -
-# sans cette restauration, le fichier reste modifie dans l'arbre de
-# travail apres l'install, pret a etre commite par erreur avec la valeur
-# CUDA/CPU propre a CETTE machine, cassant l'auto-detection GPU pour tout
-# le monde d'autre tant que personne ne s'en apercoit.
-$script:TorchIndexOriginalContent = @{}
-function Restore-TorchIndexPlaceholders {
-    foreach ($proj in $script:TorchIndexOriginalContent.Keys) {
-        Set-Content -Path $proj -Value $script:TorchIndexOriginalContent[$proj] -NoNewline
-    }
-    $script:TorchIndexOriginalContent = @{}
-}
-trap { Restore-TorchIndexPlaceholders; break }
-
-function Fail($msg) {
-    Write-Host "x $msg" -ForegroundColor Red
-    Restore-TorchIndexPlaceholders
-    exit 1
-}
+function Fail($msg) { Write-Host "x $msg" -ForegroundColor Red; exit 1 }
 
 # ---------------------------------------------------------------- 1. prerequis
 
@@ -301,12 +279,23 @@ if ($GpuIndex -eq "pytorch-cpu") {
     } catch {}
 }
 
+# Le fichier GARDE cette vraie valeur apres l'install (teste en direct :
+# le restaurer vers le placeholder casse tout `uv run`/`uv sync`
+# ULTERIEUR - `uv` resout pyproject.toml a chaque appel, pas seulement a
+# l'install, et AELYN_TORCH_INDEX n'est pas un vrai nom d'index). Pour
+# eviter malgre tout qu'elle soit commitee par erreur - bug reel et
+# RECURRENT, deja corrige une fois dans security-agent/pyproject.toml
+# (cf. son commentaire) puis regresse par exactement ce scenario - on
+# marque le fichier --skip-worktree : git le traite comme "non modifie"
+# pour status/diff/add, sans toucher au contenu reel sur disque.
 foreach ($proj in @("$BackendDir\career-agent\pyproject.toml", "$BackendDir\security-agent\pyproject.toml")) {
     $content = Get-Content $proj -Raw
     if ($content -match "AELYN_TORCH_INDEX") {
-        $script:TorchIndexOriginalContent[$proj] = $content
         $rewritten = $content -replace '\{ index = "AELYN_TORCH_INDEX" \}', "{ index = `"$GpuIndex`" }"
         Set-Content -Path $proj -Value $rewritten -NoNewline
+        if (Get-Command git -ErrorAction SilentlyContinue) {
+            try { git -C $BackendDir update-index --skip-worktree $proj 2>$null } catch {}
+        }
     }
 }
 
@@ -635,5 +624,3 @@ if (-not (Get-EnvValue "EMAIL_PASS")) {
 } else {
     Write-Host (T "reminder_email_pass_done")
 }
-
-Restore-TorchIndexPlaceholders

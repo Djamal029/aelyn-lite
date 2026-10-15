@@ -43,16 +43,16 @@ done
 # écrasé/effacé par un second `trap` ailleurs - bug réel rencontré en
 # écrivant ce script, où un trap posé plus loin pour un fichier temporaire
 # remplaçait silencieusement celui-ci) : supprime le fichier temporaire du
-# collage de profil.json s'il existe encore, ET restaure les deux
-# pyproject.toml réécrits pour le GPU (cf. step 2) vers leur placeholder
-# d'origine, quoi qu'il arrive (succès, erreur, Ctrl+C).
+# collage de profil.json s'il existe encore. Les pyproject.toml réécrits
+# pour le GPU (cf. step 2) ne sont PAS restaurés vers leur placeholder ici
+# - testé en direct, ça casse tout `uv run`/`uv sync` ULTÉRIEUR
+# (`AELYN_TORCH_INDEX` n'est pas un vrai nom d'index, seulement valide
+# PENDANT la réécriture temporaire de install.sh) : `git update-index
+# --skip-worktree` (step 2) protège contre le commit accidentel sans
+# jamais toucher au contenu réel du fichier sur disque.
 PASTE_FILE=""
-TORCH_INDEX_PROJECTS=()
 _cleanup() {
   [[ -n "$PASTE_FILE" ]] && rm -f "$PASTE_FILE"
-  for proj in "${TORCH_INDEX_PROJECTS[@]}"; do
-    [[ -f "$proj.bak" ]] && mv -f "$proj.bak" "$proj"
-  done
 }
 trap _cleanup EXIT
 
@@ -383,21 +383,25 @@ fi
 # pas une fonctionnalité uv native (cf. ces mêmes commentaires), un simple
 # remplacement de texte, robuste et sans dépendance supplémentaire.
 #
-# Restauré vers le PLACEHOLDER (pas vers une vraie valeur d'index) quoi
-# qu'il arrive ensuite, via `_cleanup` (trap EXIT unique du script, cf. sa
-# définition) : bug réel et RÉCURRENT (déjà corrigé une fois dans
-# security-agent/pyproject.toml, cf. son commentaire, puis régressé) - sans
-# cette restauration, le fichier reste modifié dans l'arbre de travail
-# après l'install, prêt à être commité par erreur (`git add -A`) avec la
-# valeur CUDA/CPU propre à CETTE machine, cassant l'auto-détection GPU
-# pour tout le monde d'autre tant que personne ne s'en aperçoit.
+# Le fichier GARDE cette vraie valeur après l'install (testé en direct :
+# le restaurer vers le placeholder casse tout `uv run`/`uv sync`
+# ULTÉRIEUR - `uv` résout `pyproject.toml` à chaque appel, pas seulement
+# à l'install, et `AELYN_TORCH_INDEX` n'est pas un vrai nom d'index). Pour
+# éviter malgré tout qu'elle soit commitée par erreur - bug réel et
+# RÉCURRENT, déjà corrigé une fois dans security-agent/pyproject.toml
+# (cf. son commentaire) puis régressé par exactement ce scénario - on
+# marque le fichier `--skip-worktree` : git le traite comme "non modifié"
+# pour status/diff/add, sans toucher au contenu réel sur disque.
 TORCH_INDEX_PROJECTS=(
   "$BACKEND_DIR/career-agent/pyproject.toml"
   "$BACKEND_DIR/security-agent/pyproject.toml"
 )
 for proj in "${TORCH_INDEX_PROJECTS[@]}"; do
   if grep -q "AELYN_TORCH_INDEX" "$proj"; then
-    sed -i.bak "s/{ index = \"AELYN_TORCH_INDEX\" }/{ index = \"$GPU_INDEX\" }/" "$proj"
+    sed -i "s/{ index = \"AELYN_TORCH_INDEX\" }/{ index = \"$GPU_INDEX\" }/" "$proj"
+    if git -C "$BACKEND_DIR" rev-parse --git-dir >/dev/null 2>&1; then
+      git -C "$BACKEND_DIR" update-index --skip-worktree "$proj" 2>/dev/null || true
+    fi
   fi
 done
 
