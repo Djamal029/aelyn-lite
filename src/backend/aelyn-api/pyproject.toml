@@ -10,7 +10,15 @@ dependencies = [
     "aelyn-media",
     "aelyn-conversation",
     "fastapi>=0.115",
-    "uvicorn[standard]>=0.30",
+    # `uvicorn` SANS l'extra `[standard]` volontairement : cet extra tire
+    # `httptools` (extension C), sans wheel prête sur PyPI pour tout
+    # Python récent/alpha (observé en direct : build-from-source exigeant
+    # "Microsoft Visual C++ 14.0 or greater", absent par défaut sur
+    # Windows) - un échec total de l'installation pour un simple gain de
+    # perf de parsing HTTP totalement inutile pour un assistant local
+    # mono-utilisateur. `uvicorn` nu utilise un parseur HTTP pur Python
+    # (h11), zéro dépendance compilée, fonctionne partout sans toolchain C.
+    "uvicorn>=0.30",
     # GET /media/youtube/search (YouTube Data API v3), même lib que
     # career-agent (aelyn_career.france_travail.offers) pour un appel
     # HTTP synchrone simple, pas besoin d'un client async ici.
