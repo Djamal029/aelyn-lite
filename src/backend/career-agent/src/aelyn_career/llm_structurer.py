@@ -45,6 +45,16 @@ class LLMOfferStructurer:
             schema=OffreStructuree,
             system=SYSTEM_STRUCTURE,
             user=offer_text,
+            # Sans ceci, la fenêtre de contexte Ollama par défaut (4096
+            # tokens, prompt + sortie confondus, cf. le docstring de
+            # `structured()`) peut ne pas laisser assez de place pour la
+            # sortie JSON sur une offre verbeuse (beaucoup de compétences
+            # requises) - bug réel observé en direct : une offre riche en
+            # exigences techniques (FHIR/HL7/Kubernetes...) tronquait la
+            # sortie JSON en plein milieu d'une chaîne sur les 3 tentatives,
+            # faisant échouer TOUTE la recherche d'offres au lieu de cette
+            # seule offre.
+            num_ctx=8192,
         )
         payload = structuree.model_dump(mode="json")
 

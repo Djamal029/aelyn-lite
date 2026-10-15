@@ -9,11 +9,13 @@ contente de les enchaîner, aucune nouvelle logique métier.
 
 from __future__ import annotations
 
+import logging
 import os
 
 import dotenv
 import numpy as np
 
+from aelyn.core.llm import LLMError
 from aelyn_career.embbeder import TextEmbbeder, niveau_adequacy
 from aelyn_career.france_travail.offers import FTOffers
 from aelyn_career.llm_structurer import LLMOfferStructurer
@@ -21,6 +23,7 @@ from aelyn_career.profil_manager import ProfilManager, chunk_label
 from aelyn_career.search import JobSearchService
 
 dotenv.load_dotenv()
+logger = logging.getLogger(__name__)
 TOP_K_CHUNKS = int(os.getenv("TOP_K_CHUNKS", "5"))
 # Score (échelle sqrt déjà appliquée, cf. find_best_matches) en dessous
 # duquel une offre est écartée plutôt que de combler artificiellement un
@@ -83,7 +86,19 @@ def find_best_matches(
 
     resultats = []
     for offre in offres:
-        offre_structuree = structurer.structure_offers(offre["id"], _offer_text(offre))
+        try:
+            offre_structuree = structurer.structure_offers(offre["id"], _offer_text(offre))
+        except LLMError:
+            # Une offre dont le LLM échoue à structurer la sortie (ex.
+            # description verbeuse qui tronque le JSON, cf.
+            # `LLMOfferStructurer.structure_offers`) ne doit JAMAIS faire
+            # échouer TOUTE la recherche - bug réel observé en direct :
+            # une seule offre à exigences techniques denses (FHIR/HL7/
+            # Kubernetes...) faisait échouer "cherche des offres en
+            # finance" sans qu'aucun des autres résultats, déjà
+            # correctement structurés, ne soit montré à l'utilisateur.
+            logger.warning("Structuration impossible pour l'offre %s, ignorée", offre["id"])
+            continue
         scores = np.asarray(embedder.final_score(chunks, offre_structuree))
 
         top_indices = np.argsort(scores)[::-1][:TOP_K_CHUNKS]
