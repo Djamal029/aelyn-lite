@@ -39,6 +39,8 @@ class ApplicationOut(BaseModel):
     description: str | None = None
     questions: str | None = None
     interview_date: str | None = None
+    likely_questions: str | None = None
+    personal_pitch: str | None = None
 
 
 def _to_out(app: Application) -> ApplicationOut:
@@ -54,6 +56,8 @@ def _to_out(app: Application) -> ApplicationOut:
         description=app.description,
         questions=app.questions,
         interview_date=app.interview_date,
+        likely_questions=app.likely_questions,
+        personal_pitch=app.personal_pitch,
     )
 
 
@@ -81,6 +85,8 @@ class ApplicationPatchIn(BaseModel):
     note: str | None = None
     description: str | None = None
     interview_date: str | None = None
+    likely_questions: str | None = None
+    personal_pitch: str | None = None
 
 
 @router.patch("/{offer_id}", response_model=ApplicationOut)
@@ -102,6 +108,10 @@ def update_application(
         updated = store.set_description(offer_id, body.description) or updated
     if body.interview_date is not None:
         updated = store.set_interview_date(offer_id, body.interview_date) or updated
+    if body.likely_questions is not None:
+        updated = store.set_likely_questions(offer_id, body.likely_questions) or updated
+    if body.personal_pitch is not None:
+        updated = store.set_personal_pitch(offer_id, body.personal_pitch) or updated
     return _to_out(updated)
 
 
@@ -173,6 +183,45 @@ def generate_questions(
 
     updated = store.set_questions(offer_id, questions)
     assert updated is not None
+    return _to_out(updated)
+
+
+class GenerateInterviewPrepIn(BaseModel):
+    description: str | None = None
+
+
+@router.post("/{offer_id}/interview-prep", response_model=ApplicationOut)
+def generate_interview_prep(
+    offer_id: str,
+    body: GenerateInterviewPrepIn,
+    store: ApplicationsStore = Depends(get_applications_store),
+    writer: ApplicationWriter = Depends(get_application_writer),
+) -> ApplicationOut:
+    """Génère (ou régénère) la préparation côté candidat pour cette
+    candidature : questions que LE RECRUTEUR pourrait poser (ancrées dans
+    le profil réel) et une présentation personnelle orale - l'inverse de
+    `/questions` (questions à poser, pas à recevoir). Même logique que
+    `/questions` pour `body.description`."""
+    current = store.get(offer_id)
+    if current is None:
+        raise HTTPException(404, f"Candidature {offer_id} inconnue.")
+
+    if body.description is not None:
+        current = store.set_description(offer_id, body.description) or current
+
+    try:
+        likely_questions = writer.generate_likely_questions(
+            title=current.title, company=current.company, description=current.description,
+        )
+        personal_pitch = writer.generate_personal_pitch(
+            title=current.title, company=current.company, description=current.description,
+        )
+    except LLMError as exc:
+        raise HTTPException(502, f"Préparation de l'entretien impossible : {exc}") from exc
+
+    updated = store.set_likely_questions(offer_id, likely_questions)
+    assert updated is not None
+    updated = store.set_personal_pitch(offer_id, personal_pitch) or updated
     return _to_out(updated)
 
 

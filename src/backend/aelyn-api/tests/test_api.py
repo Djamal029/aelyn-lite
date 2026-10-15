@@ -842,6 +842,31 @@ class TestApplications:
         assert response.status_code == 200
         assert response.json()["description"] == "Stage de 6 mois."
 
+    def test_patch_application_sets_likely_questions_and_personal_pitch(self, tmp_path) -> None:
+        """Permet de coller directement un contenu déjà préparé par
+        l'utilisateur (ex. une recherche faite ailleurs), sans passer par
+        la génération LLM - même logique que `description`/`interview_date`."""
+        from aelyn_api.deps import get_applications_store
+
+        store = self._store(tmp_path)
+        store.record(offer_id="1", title="Data Scientist", company="EDF")
+        app.dependency_overrides[get_applications_store] = lambda: store
+        try:
+            response = client.patch(
+                "/applications/1",
+                json={
+                    "likely_questions": "1. Pourquoi ce poste ?",
+                    "personal_pitch": "Je suis élève-ingénieur...",
+                },
+            )
+        finally:
+            app.dependency_overrides.clear()
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body["likely_questions"] == "1. Pourquoi ce poste ?"
+        assert body["personal_pitch"] == "Je suis élève-ingénieur..."
+
     def test_patch_application_sets_interview_date(self, tmp_path) -> None:
         from aelyn_api.deps import get_applications_store
 
@@ -970,3 +995,65 @@ class TestApplications:
             app.dependency_overrides.clear()
 
         assert response.status_code == 404
+
+    def test_generate_interview_prep_updates_application(self, tmp_path) -> None:
+        from unittest.mock import Mock
+
+        from aelyn_api.deps import get_application_writer, get_applications_store
+
+        store = self._store(tmp_path)
+        store.record(offer_id="1", title="Stagiaire Biostatistiques", company="Phosphea")
+        writer = Mock()
+        writer.generate_likely_questions.return_value = "1. Parlez-moi de X."
+        writer.generate_personal_pitch.return_value = "Je suis élève-ingénieur..."
+        app.dependency_overrides[get_applications_store] = lambda: store
+        app.dependency_overrides[get_application_writer] = lambda: writer
+        try:
+            response = client.post(
+                "/applications/1/interview-prep", json={"description": "Stage R&D sous R."}
+            )
+        finally:
+            app.dependency_overrides.clear()
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body["likely_questions"] == "1. Parlez-moi de X."
+        assert body["personal_pitch"] == "Je suis élève-ingénieur..."
+        assert body["description"] == "Stage R&D sous R."
+        writer.generate_likely_questions.assert_called_once_with(
+            title="Stagiaire Biostatistiques", company="Phosphea", description="Stage R&D sous R.",
+        )
+        writer.generate_personal_pitch.assert_called_once_with(
+            title="Stagiaire Biostatistiques", company="Phosphea", description="Stage R&D sous R.",
+        )
+
+    def test_generate_interview_prep_for_unknown_offer_is_404(self, tmp_path) -> None:
+        from aelyn_api.deps import get_applications_store
+
+        store = self._store(tmp_path)
+        app.dependency_overrides[get_applications_store] = lambda: store
+        try:
+            response = client.post("/applications/unknown/interview-prep", json={})
+        finally:
+            app.dependency_overrides.clear()
+
+        assert response.status_code == 404
+
+    def test_generate_interview_prep_reports_llm_error_as_502(self, tmp_path) -> None:
+        from unittest.mock import Mock
+
+        from aelyn.core.llm import LLMError
+        from aelyn_api.deps import get_application_writer, get_applications_store
+
+        store = self._store(tmp_path)
+        store.record(offer_id="1", title="Stagiaire", company="ACME")
+        writer = Mock()
+        writer.generate_likely_questions.side_effect = LLMError("indisponible")
+        app.dependency_overrides[get_applications_store] = lambda: store
+        app.dependency_overrides[get_application_writer] = lambda: writer
+        try:
+            response = client.post("/applications/1/interview-prep", json={})
+        finally:
+            app.dependency_overrides.clear()
+
+        assert response.status_code == 502

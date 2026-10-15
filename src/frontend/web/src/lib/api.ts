@@ -310,6 +310,8 @@ export interface ApiApplication {
   description: string | null;
   questions: string | null;
   interview_date: string | null;
+  likely_questions: string | null;
+  personal_pitch: string | null;
 }
 
 /** GET /applications : le vrai suivi (aelyn_career.applications), la
@@ -366,6 +368,22 @@ export function generateApplicationQuestions(
   description?: string
 ): Promise<ApiApplication> {
   return request(`/applications/${offerId}/questions`, {
+    method: "POST",
+    body: { description },
+    timeoutMs: 150_000,
+  });
+}
+
+/** POST /applications/{offer_id}/interview-prep : génère (ou régénère)
+ * la préparation côté candidat - questions que le recruteur pourrait
+ * poser (ancrées dans le profil réel) et une présentation personnelle
+ * orale. L'inverse de `generateApplicationQuestions` (questions à poser,
+ * pas à recevoir). */
+export function generateInterviewPrep(
+  offerId: string,
+  description?: string
+): Promise<ApiApplication> {
+  return request(`/applications/${offerId}/interview-prep`, {
     method: "POST",
     body: { description },
     timeoutMs: 150_000,

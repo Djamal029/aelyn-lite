@@ -646,3 +646,61 @@ def test_generate_interview_questions_handles_missing_description_and_company():
     kwargs = llm.text.call_args.kwargs
     assert "non précisée" in kwargs["user"]
     assert "Description" not in kwargs["user"]
+
+
+def test_generate_likely_questions_grounds_in_relevant_profile_and_offer():
+    """Contrairement à `generate_interview_questions` (questions à POSER,
+    n'a besoin que de l'offre), `generate_likely_questions` doit pouvoir
+    ancrer ses questions dans le VRAI parcours du candidat - un extrait
+    pertinent du profil doit donc apparaître dans le prompt, pas
+    seulement l'offre."""
+    llm = Mock()
+    llm.text.return_value = "1. Parlez-moi de votre expérience à l'ENSAI."
+    writer = ApplicationWriter(ProfilManager(make_profile()), llm=llm)
+
+    result = writer.generate_likely_questions(
+        title="Stagiaire Biostatistiques", company="Phosphea",
+        description="Stage de 6 mois, équipe R&D.",
+    )
+
+    assert result == "1. Parlez-moi de votre expérience à l'ENSAI."
+    kwargs = llm.text.call_args.kwargs
+    assert "Stagiaire Biostatistiques" in kwargs["user"]
+    assert "Phosphea" in kwargs["user"]
+    assert "ENSAI" in kwargs["user"]  # vient du profil, pas seulement de l'offre
+
+
+def test_generate_personal_pitch_grounds_in_relevant_profile_and_offer():
+    llm = Mock()
+    llm.text.return_value = "Je suis élève-ingénieur à l'ENSAI..."
+    writer = ApplicationWriter(ProfilManager(make_profile()), llm=llm)
+
+    result = writer.generate_personal_pitch(
+        title="Stagiaire Biostatistiques", company="Phosphea",
+    )
+
+    assert result == "Je suis élève-ingénieur à l'ENSAI..."
+    kwargs = llm.text.call_args.kwargs
+    assert "Stagiaire Biostatistiques" in kwargs["user"]
+    assert "ENSAI" in kwargs["user"]
+
+
+def test_offer_context_for_prep_uses_curated_facts_not_the_raw_full_profile():
+    """Bug réel observé en direct : avec le profil COMPLET en contexte
+    (~24000 caractères), gemma3:4b ET mistral:7b décrochaient tous les
+    deux du system prompt sur une génération en texte libre - au lieu
+    d'un pitch/de questions, le modèle produisait une analyse du profil à
+    la troisième personne ("ce candidat est un bon choix parce que...").
+    Fix vérifié en direct : réutiliser le pipeline de sélection de
+    `draft_cv` (déjà filtré aux éléments pertinents pour l'offre) ramène
+    le contexte à quelques milliers de caractères et corrige le
+    comportement. Ce test garde une limite de taille explicite pour
+    empêcher une régression silencieuse vers le profil brut."""
+    writer = ApplicationWriter(ProfilManager(make_profile()))
+
+    context = writer._offer_context_for_prep(
+        title="Stagiaire Biostatistiques", company="Phosphea", description=None,
+    )
+
+    assert len(context) < 8000
+    assert "PROFIL PERTINENT" in context

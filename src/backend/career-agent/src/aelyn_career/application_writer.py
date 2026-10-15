@@ -27,6 +27,8 @@ from aelyn_career.profil_manager import ProfilManager, load_profil_json
 from aelyn_career.prompts import (
     SYSTEM_APPLICATION_QUESTIONS,
     SYSTEM_EMAIL_ENVOI,
+    SYSTEM_LIKELY_INTERVIEW_QUESTIONS,
+    SYSTEM_PERSONAL_PITCH,
     SYSTEM_POLISH_COVER_LETTER,
     SYSTEM_POLISH_CV_BULLETS,
 )
@@ -1070,6 +1072,54 @@ class ApplicationWriter:
         return self.llm.text(
             system=SYSTEM_APPLICATION_QUESTIONS.format(user_name=settings.user_name),
             user=contexte,
+        )
+
+    def _offer_context_for_prep(self, *, title: str, company: str | None, description: str | None) -> str:
+        """Bug réel observé en direct : avec le PROFIL COMPLET (`_user_input`,
+        ~24000 caractères), gemma3:4b ET mistral:7b décrochaient tous les
+        deux du system prompt sur une génération en texte libre - au lieu
+        d'un pitch à la première personne, le modèle produisait une
+        analyse du profil à la troisième personne façon "voici pourquoi ce
+        candidat convient". Un contexte aussi massif, hors d'un appel
+        structuré (`llm.structured`, qui contraint la sortie), fait
+        décrocher un petit modèle vers son comportement par défaut
+        ("résumer/évaluer ce CV") plutôt que suivre l'instruction. Fix :
+        réutiliser le MÊME pipeline de sélection que `draft_cv` (déjà
+        fiable, déjà filtré aux éléments pertinents pour CETTE offre) au
+        lieu du profil brut - ~3500 caractères au lieu de ~24000, et le
+        comportement redevient correct avec gemma3:4b (vérifié en direct)."""
+        offer_text = f"Intitulé : {title}\nEntreprise : {company or 'non précisée'}"
+        if description:
+            offer_text += f"\nDescription :\n{description[:3000]}"
+        relevant_facts = format_cv_text(self.draft_cv(offer_text))
+        return f"PROFIL PERTINENT :\n{relevant_facts}\n\nOFFRE :\n{offer_text}"
+
+    def generate_likely_questions(
+        self, *, title: str, company: str | None, description: str | None = None
+    ) -> str:
+        """Questions que LE RECRUTEUR pourrait poser à {user_name} pour
+        CETTE offre, ancrées dans son profil RÉEL (cf.
+        `SYSTEM_LIKELY_INTERVIEW_QUESTIONS`) - préparation à l'entretien,
+        pas une simple vérification de compréhension du poste. Grounding
+        complet (profil entier, même mécanisme que la génération de
+        CV/lettre) : contrairement à `generate_interview_questions`, qui
+        n'a besoin que de l'offre, ici le LLM doit connaître le parcours
+        réel du candidat pour poser des questions crédibles dessus."""
+        return self.llm.text(
+            system=SYSTEM_LIKELY_INTERVIEW_QUESTIONS.format(user_name=settings.user_name),
+            user=self._offer_context_for_prep(title=title, company=company, description=description),
+        )
+
+    def generate_personal_pitch(
+        self, *, title: str, company: str | None, description: str | None = None
+    ) -> str:
+        """Présentation personnelle orale (« parlez-moi de vous ») pour
+        CETTE offre, ancrée dans le profil RÉEL du candidat (cf.
+        `SYSTEM_PERSONAL_PITCH`). Même grounding complet que
+        `generate_likely_questions`."""
+        return self.llm.text(
+            system=SYSTEM_PERSONAL_PITCH.format(user_name=settings.user_name),
+            user=self._offer_context_for_prep(title=title, company=company, description=description),
         )
 
     @staticmethod

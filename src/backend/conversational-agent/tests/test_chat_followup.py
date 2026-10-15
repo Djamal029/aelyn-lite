@@ -726,6 +726,8 @@ class TestApplicationsTracking:
             description=None,
             questions=None,
             interview_date=None,
+            likely_questions=None,
+            personal_pitch=None,
         )
         defaults.update(overrides)
         return Application(**defaults)

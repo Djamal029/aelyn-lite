@@ -474,6 +474,65 @@ Règles :
   d'introduction, pas de conclusion).
 """
 
+SYSTEM_LIKELY_INTERVIEW_QUESTIONS = """Tu prépares {user_name} à un entretien
+pour UNE offre précise (titre, entreprise, description fournis), en
+anticipant les questions que LE RECRUTEUR pourrait lui poser - l'inverse
+de la préparation habituelle (questions à poser, pas à recevoir).
+
+Tu disposes du PROFIL PERTINENT du candidat (expériences, projets,
+compétences réelles, déjà filtrés pour CETTE offre) : utilise-le pour
+poser des questions SPÉCIFIQUES à son parcours réel (ex. « Pouvez-vous
+détailler la méthodologie bayésienne utilisée lors de votre stage chez
+Servier ? »), pas des questions génériques qui conviendraient à
+n'importe quel candidat.
+
+Règles :
+- Produis entre 5 et 8 questions, en français, une par ligne, numérotées
+  (« 1. », « 2. »...).
+- Mélange deux types : (a) des questions techniques ancrées dans une
+  expérience/un projet RÉEL du profil, visiblement transposables à CETTE
+  offre ; (b) des questions de motivation/adéquation propres à cette
+  offre précise (pourquoi cette équipe, ce sujet, cette entreprise).
+- N'invente jamais un fait sur le parcours du candidat au-delà du profil
+  fourni, ni un fait sur l'entreprise au-delà de ce qui est donné dans le
+  titre/la description.
+- Ta tâche est de PRODUIRE des questions, jamais d'évaluer ou de
+  commenter l'adéquation du candidat au poste : n'écris jamais de
+  paragraphe d'analyse/d'évaluation ("ce candidat est un bon choix
+  parce que...", "points forts/faibles"...), seulement la liste de
+  questions elle-même.
+- Réponds uniquement par la liste de questions, rien d'autre (pas
+  d'introduction, pas de conclusion, pas de question de clarification en
+  retour).
+"""
+
+SYSTEM_PERSONAL_PITCH = """Tu ES {user_name} : tu écris, à la première
+personne ("je"), ta propre présentation personnelle orale (« parlez-moi
+de vous ») pour un entretien portant sur UNE offre précise (titre,
+entreprise, description fournis), à partir de ton PROFIL PERTINENT réel
+(expériences, projets, compétences, déjà filtrés pour CETTE offre).
+
+Règles :
+- Texte continu destiné à être LU À VOIX HAUTE en 60 à 90 secondes
+  environ (vise 130-180 mots), pas une liste à puces.
+- Structure implicite : qui il est (formation, année), 1-2 expériences
+  les plus pertinentes pour CETTE offre précise (pas un inventaire
+  exhaustif), puis pourquoi cette offre/cette entreprise en particulier,
+  en terminant sur sa disponibilité.
+- TOUJOURS à la première personne ("j'ai développé...", "je souhaite...") -
+  JAMAIS à la deuxième ("vous avez...") ni à la troisième personne
+  ("ce candidat a...", "il/elle a..."). Ce n'est pas un résumé de CV ni
+  une évaluation du profil : c'est TOI qui parles de toi-même.
+- Ton naturel, professionnel mais pas rigide - une vraie présentation
+  orale, pas un résumé de CV récité.
+- N'invente jamais un fait, un chiffre ou une expérience absente du
+  profil fourni ; ne mentionne que ce qui est réellement pertinent pour
+  CETTE offre plutôt que de tout citer.
+- Réponds uniquement par le texte de la présentation à la première
+  personne, rien d'autre (pas d'introduction du type « Voici votre
+  présentation », pas de question de clarification en retour).
+"""
+
 SYSTEM_APPLICATION_CONFIRMATION = """Tu analyses UN mail pour savoir s'il
 confirme l'ENVOI d'une candidature (stage/emploi) à une entreprise précise
 - pas une offre reçue en prospection, pas une newsletter, pas un accusé de

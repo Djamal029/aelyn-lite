@@ -62,6 +62,8 @@ class ApplicationRow(Base):
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     questions: Mapped[str | None] = mapped_column(Text, nullable=True)
     interview_date: Mapped[str | None] = mapped_column(String, nullable=True)
+    likely_questions: Mapped[str | None] = mapped_column(Text, nullable=True)
+    personal_pitch: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 
 @dataclass(slots=True, frozen=True)
@@ -76,6 +78,8 @@ class Application:
     description: str | None
     questions: str | None
     interview_date: str | None
+    likely_questions: str | None
+    personal_pitch: str | None
 
     def to_line(self) -> str:
         moment = self.applied_ts.astimezone().strftime("%d/%m")
@@ -83,7 +87,9 @@ class Application:
         return f"{moment} | {status_label(self.status):<16} | {self.title}{cible}"
 
 
-_NEW_COLUMNS = ("description", "questions", "interview_date")
+_NEW_COLUMNS = (
+    "description", "questions", "interview_date", "likely_questions", "personal_pitch",
+)
 
 
 class ApplicationsStore:
@@ -130,6 +136,8 @@ class ApplicationsStore:
                 description=description,
                 questions=None,
                 interview_date=None,
+                likely_questions=None,
+                personal_pitch=None,
             )
             session.add(row)
             session.commit()
@@ -187,6 +195,31 @@ class ApplicationsStore:
             if row is None:
                 return None
             row.interview_date = interview_date
+            row.updated_ts = datetime.now(timezone.utc).isoformat()
+            session.commit()
+            return _to_application(row)
+
+    def set_likely_questions(self, offer_id: str, likely_questions: str) -> Application | None:
+        """Questions que le recruteur pourrait poser (préparation à
+        l'entretien, cf. `ApplicationWriter.generate_likely_questions`) -
+        distinct de `questions` (questions à POSER au recruteur)."""
+        with Session(self._engine) as session:
+            row = session.get(ApplicationRow, offer_id)
+            if row is None:
+                return None
+            row.likely_questions = likely_questions
+            row.updated_ts = datetime.now(timezone.utc).isoformat()
+            session.commit()
+            return _to_application(row)
+
+    def set_personal_pitch(self, offer_id: str, personal_pitch: str) -> Application | None:
+        """Présentation personnelle orale pour l'entretien (cf.
+        `ApplicationWriter.generate_personal_pitch`)."""
+        with Session(self._engine) as session:
+            row = session.get(ApplicationRow, offer_id)
+            if row is None:
+                return None
+            row.personal_pitch = personal_pitch
             row.updated_ts = datetime.now(timezone.utc).isoformat()
             session.commit()
             return _to_application(row)
@@ -270,4 +303,6 @@ def _to_application(row: ApplicationRow) -> Application:
         description=row.description,
         questions=row.questions,
         interview_date=row.interview_date,
+        likely_questions=row.likely_questions,
+        personal_pitch=row.personal_pitch,
     )

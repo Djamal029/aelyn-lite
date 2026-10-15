@@ -4,6 +4,7 @@ import {
   checkApplicationReplies,
   deleteApplication,
   generateApplicationQuestions,
+  generateInterviewPrep,
   getApplications,
   updateApplication,
   type ApiApplication,
@@ -136,6 +137,15 @@ export function useApplications() {
     }
   }, []);
 
+  const generatePrep = useCallback(async (offerId: string, description?: string) => {
+    try {
+      const updated = await generateInterviewPrep(offerId, description);
+      setApplications((prev) => prev.map((a) => (a.offer_id === offerId ? updated : a)));
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Préparation de l'entretien impossible.");
+    }
+  }, []);
+
   return {
     applications,
     loading,
@@ -148,5 +158,6 @@ export function useApplications() {
     setDescription,
     setInterviewDate,
     generateQuestions,
+    generatePrep,
   };
 }
